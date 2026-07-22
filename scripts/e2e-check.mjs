@@ -311,6 +311,27 @@ try {
     else ok('月曆空白日補登 + 最近吃過一鍵再加')
     await ctx.close()
   }
+  // ---- 9. 目標精靈 + 體重記錄 ----
+  console.log('9. 目標精靈 / 體重記錄')
+  {
+    const { ctx, page } = await newPage({})
+    await page.goto(`${BASE}#settings`)
+    await page.click('[data-testid="wizard-open"]')
+    await page.fill('[data-testid="wizard-age"]', '40')
+    await page.fill('[data-testid="wizard-height"]', '170')
+    await page.fill('[data-testid="wizard-weight"]', '75')
+    await page.waitForSelector('[data-testid="wizard-result"]', { timeout: 3000 })
+    await page.click('[data-testid="wizard-apply"]')
+    await page.goto(BASE)
+    // 套用後熱量目標不再是預設 1800（40歲170cm75kg輕度 ≈ 2200±）
+    const ring = await page.textContent('[data-testid="ring-kcal"]')
+    if (ring.includes('/1800')) fail(`精靈套用後目標仍是 1800：${ring}`)
+    // 精靈順手記了體重 → 今日頁顯示
+    const w = await page.textContent('[data-testid="weight-row"]')
+    if (!w.includes('75')) fail(`今日體重應顯示 75，實得：${w}`)
+    else ok('目標精靈套用 + 體重同步記錄')
+    await ctx.close()
+  }
 } catch (e) {
   fail(`未捕捉錯誤：${e.message}`)
 } finally {

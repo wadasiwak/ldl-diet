@@ -148,6 +148,18 @@ if (portion.scaleRatio('一碗', '一碗') !== null) err(`同份量不應換算`
 if (portion.scaleRatio('適量', '100g') !== null) err(`解析不出不應換算`)
 console.log(`  ${CASES.length} 個解析案例`)
 
+console.log('== 目標精靈 TDEE ==')
+const tdee = await bundleTs('src/lib/tdee.ts')
+// Mifflin-St Jeor 已知值：男 40歲 170cm 75kg → BMR 10*75+6.25*170-5*40+5 = 1617.5
+const male = tdee.suggestKcalTarget({ sex: 'male', age: 40, heightCm: 170, weightKg: 75, activity: 1.2, goalAdjust: 0 })
+if (male.bmr !== 1618 && male.bmr !== 1617) err(`男 BMR 應 ~1618，實得 ${male.bmr}`)
+if (Math.abs(male.tdee - 1941) > 2) err(`男 TDEE 應 ~1941，實得 ${male.tdee}`)
+const female = tdee.suggestKcalTarget({ sex: 'female', age: 40, heightCm: 160, weightKg: 55, activity: 1.375, goalAdjust: -500 })
+// 女 BMR = 550+1000-200-161 = 1189；TDEE ≈ 1635；-500 → 1135 → 底線 1200
+if (female.target !== 1200) err(`減重底線應 1200，實得 ${female.target}`)
+if (male.target % 50 !== 0) err(`目標應四捨五入到 50，實得 ${male.target}`)
+console.log('  BMR/TDEE 公式驗證通過')
+
 console.log('== 安全欄位 ==')
 const disclaimer = readFileSync(join(root, 'src/components/DisclaimerModal.tsx'), 'utf8')
 for (const kw of ['非醫療建議', '就醫', '停藥']) {

@@ -10,6 +10,8 @@ interface LightBackup {
   version: 1
   exportedAt: string
   records: Record<string, MealRecord[]>
+  /** 體重記錄（v1 早期備份檔可能沒有） */
+  weights?: Record<string, number>
   settings: Settings
 }
 
@@ -29,13 +31,18 @@ function download(blob: Blob, filename: string) {
 
 const stamp = () => new Date().toISOString().slice(0, 10)
 
-export function exportLight(records: Record<string, MealRecord[]>, settings: Settings) {
+export function exportLight(
+  records: Record<string, MealRecord[]>,
+  settings: Settings,
+  weights: Record<string, number> = {},
+) {
   const data: LightBackup = {
     app: 'ldl-diet',
     kind: 'light',
     version: 1,
     exportedAt: new Date().toISOString(),
     records,
+    weights,
     settings,
   }
   download(new Blob([JSON.stringify(data)], { type: 'application/json' }), `ldl-diet-backup-${stamp()}.json`)
@@ -58,13 +65,18 @@ function base64ToBlob(b64: string): Blob {
 }
 
 /** 含照片完整備份。照片多時檔案可達數十/百 MB——用陣列分段組 Blob，不疊一個大字串。 */
-export async function exportFull(records: Record<string, MealRecord[]>, settings: Settings) {
+export async function exportFull(
+  records: Record<string, MealRecord[]>,
+  settings: Settings,
+  weights: Record<string, number> = {},
+) {
   const head: Omit<FullBackup, 'photos'> = {
     app: 'ldl-diet',
     kind: 'full',
     version: 1,
     exportedAt: new Date().toISOString(),
     records,
+    weights,
     settings,
   }
   const parts: string[] = [JSON.stringify(head).slice(0, -1), ',"photos":{']
@@ -81,6 +93,7 @@ export interface ImportResult {
   ok: boolean
   message: string
   records?: Record<string, MealRecord[]>
+  weights?: Record<string, number>
   settings?: Settings
 }
 
@@ -117,6 +130,7 @@ export async function importBackup(file: File): Promise<ImportResult> {
     ok: true,
     message: `已還原 ${days} 天的紀錄${data.kind === 'full' ? '（含照片）' : ''}。`,
     records: data.records,
+    weights: data.weights ?? {},
     settings: data.settings,
   }
 }

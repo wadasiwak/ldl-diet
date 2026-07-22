@@ -75,6 +75,8 @@ interface AppState {
   // persist
   /** key = 'YYYY-MM-DD' */
   records: Record<string, MealRecord[]>
+  /** 體重記錄 kg，key = 'YYYY-MM-DD' */
+  weights: Record<string, number>
   settings: Settings
 
   setView: (v: View) => void
@@ -83,10 +85,11 @@ interface AppState {
   deleteMeal: (date: string, id: string) => void
   setTargets: (t: DailyTarget) => void
   setVisionModel: (m: NonNullable<Settings['visionModel']>) => void
+  setWeight: (date: string, kg: number | null) => void
   acceptDisclaimer: () => void
   markBackup: () => void
-  /** 匯入備份：整批取代 records（照片另行處理） */
-  replaceRecords: (records: Record<string, MealRecord[]>) => void
+  /** 匯入備份：整批取代 records/weights（照片另行處理） */
+  replaceRecords: (records: Record<string, MealRecord[]>, weights?: Record<string, number>) => void
   clearAll: () => void
 }
 
@@ -97,6 +100,7 @@ export const useApp = create<AppState>()(
     (set) => ({
       view: hashToView(location.hash),
       records: {},
+      weights: {},
       settings: {
         targets: { ...DEFAULT_TARGET },
         disclaimerAcceptedAt: null,
@@ -129,21 +133,29 @@ export const useApp = create<AppState>()(
         }),
       setTargets: (targets) => set((s) => ({ settings: { ...s.settings, targets } })),
       setVisionModel: (visionModel) => set((s) => ({ settings: { ...s.settings, visionModel } })),
+      setWeight: (date, kg) =>
+        set((s) => {
+          const weights = { ...s.weights }
+          if (kg === null || !Number.isFinite(kg) || kg <= 0) delete weights[date]
+          else weights[date] = Math.round(kg * 10) / 10
+          return { weights }
+        }),
       acceptDisclaimer: () =>
         set((s) => ({ settings: { ...s.settings, disclaimerAcceptedAt: new Date().toISOString() } })),
       markBackup: () =>
         set((s) => ({ settings: { ...s.settings, lastBackupAt: new Date().toISOString() } })),
-      replaceRecords: (records) => set({ records }),
+      replaceRecords: (records, weights) => set({ records, weights: weights ?? {} }),
       clearAll: () =>
         set({
           records: {},
+          weights: {},
           settings: { targets: { ...DEFAULT_TARGET }, disclaimerAcceptedAt: null, lastBackupAt: null },
         }),
     }),
     {
       name: 'ldl-diet-v1',
       version: 1,
-      partialize: (s) => ({ records: s.records, settings: s.settings }),
+      partialize: (s) => ({ records: s.records, weights: s.weights, settings: s.settings }),
       // schema 變更時在這裡遞增 version 並轉換舊資料
       migrate: (persisted) => persisted as AppState,
     },

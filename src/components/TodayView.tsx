@@ -57,9 +57,54 @@ export default function TodayView() {
         <MealSection key={slot} slot={slot} date={date} />
       ))}
 
+      <WeightRow date={date} />
       <A2hsHint />
       <div style={{ height: 12 }} />
     </main>
+  )
+}
+
+/** 今日體重快速記錄（選填）：長期和飲食趨勢對照用。 */
+function WeightRow({ date }: { date: string }) {
+  const weight = useApp((s) => s.weights[date])
+  const setWeight = useApp((s) => s.setWeight)
+  const [draft, setDraft] = useState('')
+  const [editing, setEditing] = useState(false)
+
+  if (weight !== undefined && !editing) {
+    return (
+      <section className="panel small" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }} data-testid="weight-row">
+        <span>⚖️ 今日體重 <strong>{weight}</strong> kg ✓</span>
+        <button className="small" onClick={() => { setDraft(String(weight)); setEditing(true) }}>改</button>
+      </section>
+    )
+  }
+  return (
+    <section className="panel small" style={{ display: 'flex', gap: 8, alignItems: 'center' }} data-testid="weight-row">
+      <span style={{ flexShrink: 0 }}>⚖️ 今日體重</span>
+      <input
+        type="number"
+        inputMode="decimal"
+        placeholder="選填 kg"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        style={{ padding: '4px 8px' }}
+        data-testid="weight-input"
+      />
+      <button
+        className="small"
+        style={{ flexShrink: 0 }}
+        disabled={!(Number(draft) > 0)}
+        data-testid="weight-save"
+        onClick={() => {
+          setWeight(date, Number(draft))
+          setEditing(false)
+          setDraft('')
+        }}
+      >
+        記錄
+      </button>
+    </section>
   )
 }
 

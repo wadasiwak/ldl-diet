@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { useApp } from '../state'
+import { useApp, todayStr } from '../state'
 import { DEFAULT_TARGET, suggestedSatFat } from '../content/types'
+import { ACTIVITY_LEVELS, GOALS, suggestKcalTarget, type Sex } from '../lib/tdee'
 import { getApiKey, setApiKey, testApiKey } from '../lib/vision'
 import { exportFull, exportLight, importBackup } from '../lib/backup'
 import { clearAllPhotos, photoUsage } from '../lib/photos'
@@ -103,6 +104,7 @@ function TargetsPanel() {
   return (
     <section className="panel" data-testid="targets">
       <h3>每日目標</h3>
+      <GoalWizard onApply={(kcal) => setTargets({ ...targets, kcal, satFat: suggestedSatFat(kcal) })} />
       <label className="small dim">
         熱量上限（kcal）
         <input
@@ -149,8 +151,100 @@ function TargetsPanel() {
   )
 }
 
+/** 目標精靈：性別/年齡/身高/體重/活動量 → Mifflin-St Jeor 估每日熱量目標。輸入不保存（隱私）。 */
+function GoalWizard({ onApply }: { onApply: (kcal: number) => void }) {
+  const setWeightRec = useApp((s) => s.setWeight)
+  const [open, setOpen] = useState(false)
+  const [sex, setSex] = useState<Sex>('male')
+  const [age, setAge] = useState('')
+  const [height, setHeight] = useState('')
+  const [weight, setWeight] = useState('')
+  const [activity, setActivity] = useState(1.375)
+  const [goal, setGoal] = useState(0)
+  const [applied, setApplied] = useState<number | null>(null)
+
+  const valid =
+    Number(age) >= 18 && Number(age) <= 100 && Number(height) >= 120 && Number(height) <= 220 && Number(weight) >= 30 && Number(weight) <= 250
+  const result = valid
+    ? suggestKcalTarget({ sex, age: Number(age), heightCm: Number(height), weightKg: Number(weight), activity, goalAdjust: goal })
+    : null
+
+  if (!open)
+    return (
+      <p style={{ margin: '0 0 10px' }}>
+        <button onClick={() => setOpen(true)} data-testid="wizard-open">🧮 幫我算適合的熱量目標</button>
+      </p>
+    )
+
+  return (
+    <div style={{ border: '1px solid var(--line)', borderRadius: 10, padding: 10, marginBottom: 12 }} data-testid="wizard">
+      <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+        <button className={sex === 'male' ? 'primary' : ''} onClick={() => setSex('male')}>生理男</button>
+        <button className={sex === 'female' ? 'primary' : ''} onClick={() => setSex('female')}>生理女</button>
+      </div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <label className="small dim" style={{ flex: 1 }}>
+          年齡
+          <input type="number" inputMode="numeric" value={age} onChange={(e) => setAge(e.target.value)} data-testid="wizard-age" />
+        </label>
+        <label className="small dim" style={{ flex: 1 }}>
+          身高 cm
+          <input type="number" inputMode="decimal" value={height} onChange={(e) => setHeight(e.target.value)} data-testid="wizard-height" />
+        </label>
+        <label className="small dim" style={{ flex: 1 }}>
+          體重 kg
+          <input type="number" inputMode="decimal" value={weight} onChange={(e) => setWeight(e.target.value)} data-testid="wizard-weight" />
+        </label>
+      </div>
+      <label className="small dim" style={{ display: 'block', marginTop: 8 }}>
+        活動量
+        <select value={activity} onChange={(e) => setActivity(Number(e.target.value))}>
+          {ACTIVITY_LEVELS.map((a) => (
+            <option key={a.v} value={a.v}>{a.label}</option>
+          ))}
+        </select>
+      </label>
+      <label className="small dim" style={{ display: 'block', marginTop: 8 }}>
+        目標
+        <select value={goal} onChange={(e) => setGoal(Number(e.target.value))}>
+          {GOALS.map((g) => (
+            <option key={g.v} value={g.v}>{g.label}</option>
+          ))}
+        </select>
+      </label>
+      {result && (
+        <p className="small" style={{ margin: '10px 0 6px' }} data-testid="wizard-result">
+          估計每日消耗約 <strong>{result.tdee}</strong> kcal → 建議目標 <strong style={{ color: 'var(--accent)' }}>{result.target}</strong> kcal
+          （飽和脂肪上限會連動為 {suggestedSatFat(result.target)} g）
+        </p>
+      )}
+      <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+        <button
+          className="primary"
+          disabled={!result}
+          data-testid="wizard-apply"
+          onClick={() => {
+            if (!result) return
+            onApply(result.target)
+            setWeightRec(todayStr(), Number(weight)) // 順手記今天的體重
+            setApplied(result.target)
+            setTimeout(() => setOpen(false), 1600)
+          }}
+        >
+          {applied ? `已套用 ${applied} kcal ✓` : '套用這個目標'}
+        </button>
+        <button onClick={() => setOpen(false)}>關閉</button>
+      </div>
+      <p className="dim" style={{ fontSize: '0.72rem', margin: '8px 0 0' }}>
+        用 Mifflin-St Jeor 公式估算，輸入的資料只算不存。結果是一般參考值，有慢性病或特殊需求請以營養師/醫師建議為準。
+      </p>
+    </div>
+  )
+}
+
 function BackupPanel() {
   const records = useApp((s) => s.records)
+  const weights = useApp((s) => s.weights)
   const settings = useApp((s) => s.settings)
   const markBackup = useApp((s) => s.markBackup)
   const replaceRecords = useApp((s) => s.replaceRecords)
@@ -172,7 +266,7 @@ function BackupPanel() {
     setBusy(true)
     const r = await importBackup(f)
     if (r.ok && r.records && r.settings) {
-      replaceRecords(r.records)
+      replaceRecords(r.records, r.weights)
       setTargets(r.settings.targets)
     }
     setMsg(r.message)
@@ -197,7 +291,7 @@ function BackupPanel() {
         <button
           data-testid="export-light"
           onClick={() => {
-            exportLight(records, settings)
+            exportLight(records, settings, weights)
             markBackup()
             setMsg('已下載輕量備份（不含照片）。')
           }}
@@ -208,7 +302,7 @@ function BackupPanel() {
           disabled={busy}
           onClick={() => {
             setBusy(true)
-            void exportFull(records, settings)
+            void exportFull(records, settings, weights)
               .then(() => {
                 markBackup()
                 setMsg('已下載完整備份（含照片，檔案較大）。')

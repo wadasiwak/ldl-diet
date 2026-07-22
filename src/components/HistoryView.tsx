@@ -122,11 +122,119 @@ export default function HistoryView({ month }: { month?: string }) {
         )}
       </section>
 
+      {logged.length >= 2 && <WeekDigest days={logged} targets={targets} />}
       {logged.length >= 2 && <TrendChart days={logged} targets={targets} />}
+      <WeightChart month={m} />
       {logged.length === 0 && (
         <p className="dim small" style={{ textAlign: 'center', padding: 20 }}>這個月還沒有紀錄</p>
       )}
     </main>
+  )
+}
+
+/** 週摘要：本月每週的四指標平均 vs 目標。 */
+function WeekDigest({
+  days,
+  targets,
+}: {
+  days: Array<{ date: string; consumed: Nutrients }>
+  targets: DailyTarget
+}) {
+  // 依 ISO 週分組（週一起算）
+  const weeks = new Map<string, Array<Nutrients>>()
+  for (const d of days) {
+    const dt = new Date(d.date + 'T12:00:00')
+    const monday = new Date(dt)
+    monday.setDate(dt.getDate() - ((dt.getDay() + 6) % 7))
+    const key = `${monday.getMonth() + 1}/${monday.getDate()}`
+    if (!weeks.has(key)) weeks.set(key, [])
+    weeks.get(key)!.push(d.consumed)
+  }
+  const rows = [...weeks.entries()].map(([key, list]) => {
+    const avg = (k: NutrientKey) => list.reduce((s, n) => s + n[k], 0) / list.length
+    return { key, n: list.length, kcal: avg('kcal'), satFat: avg('satFat'), chol: avg('chol'), fiber: avg('fiber') }
+  })
+  if (rows.length < 1) return null
+
+  const mark = (v: number, t: number, floor = false) => (
+    <span style={{ color: (floor ? v >= t : v <= t) ? 'var(--accent)' : 'var(--danger)' }}>
+      {v >= 100 ? Math.round(v) : Math.round(v * 10) / 10}
+    </span>
+  )
+
+  return (
+    <section className="panel" data-testid="week-digest">
+      <h3 style={{ margin: '0 0 6px' }}>每週平均</h3>
+      <table className="small" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'right' }}>
+        <thead>
+          <tr className="dim">
+            <th style={{ textAlign: 'left', fontWeight: 400 }}>週(一)</th>
+            <th style={{ fontWeight: 400 }}>熱量</th>
+            <th style={{ fontWeight: 400 }}>飽脂</th>
+            <th style={{ fontWeight: 400 }}>膽固醇</th>
+            <th style={{ fontWeight: 400 }}>纖維</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.key}>
+              <td style={{ textAlign: 'left' }}>{r.key} <span className="dim">({r.n}天)</span></td>
+              <td>{mark(r.kcal, targets.kcal)}</td>
+              <td>{mark(r.satFat, targets.satFat)}</td>
+              <td>{mark(r.chol, targets.chol)}</td>
+              <td>{mark(r.fiber, targets.fiber, true)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="dim" style={{ fontSize: '0.72rem', margin: '6px 0 0' }}>綠＝平均在目標內（纖維為達標）；只算有記錄的日子。</p>
+    </section>
+  )
+}
+
+/** 體重趨勢（本月有 ≥2 筆才畫）。 */
+function WeightChart({ month }: { month: string }) {
+  const weights = useApp((s) => s.weights)
+  const pts = Object.entries(weights)
+    .filter(([d]) => d.startsWith(month))
+    .sort(([a], [b]) => (a < b ? -1 : 1))
+    .map(([d, kg]) => ({ d, kg }))
+  if (pts.length < 2) return null
+
+  const W = 320
+  const H = 110
+  const PAD = { l: 38, r: 8, t: 12, b: 18 }
+  const vals = pts.map((p) => p.kg)
+  const min = Math.min(...vals) - 0.5
+  const max = Math.max(...vals) + 0.5
+  const x = (i: number) => PAD.l + (i / Math.max(pts.length - 1, 1)) * (W - PAD.l - PAD.r)
+  const y = (v: number) => H - PAD.b - ((v - min) / (max - min)) * (H - PAD.t - PAD.b)
+  const path = vals.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ')
+  const delta = Math.round((vals[vals.length - 1] - vals[0]) * 10) / 10
+
+  return (
+    <section className="panel" data-testid="weight-chart">
+      <h3 style={{ margin: '0 0 4px' }}>
+        體重 <span className="small" style={{ color: delta <= 0 ? 'var(--accent)' : 'var(--warn)' }}>
+          {delta > 0 ? `+${delta}` : delta} kg
+        </span>
+      </h3>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%' }} role="img" aria-label="體重趨勢圖">
+        {[min + 0.5, max - 0.5].map((v) => (
+          <text key={v} x={PAD.l - 4} y={y(v) + 3} textAnchor="end" fill="var(--text-dim)" fontSize="9">
+            {Math.round(v * 10) / 10}
+          </text>
+        ))}
+        <path d={path} fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinejoin="round" />
+        {pts.map((p, i) => (
+          <circle key={p.d} cx={x(i)} cy={y(p.kg)} r="2.5" fill="var(--accent)" />
+        ))}
+        <text x={PAD.l} y={H - 5} fill="var(--text-dim)" fontSize="9">{pts[0].d.slice(5)}</text>
+        <text x={W - PAD.r} y={H - 5} textAnchor="end" fill="var(--text-dim)" fontSize="9">
+          {pts[pts.length - 1].d.slice(5)}
+        </text>
+      </svg>
+    </section>
   )
 }
 
