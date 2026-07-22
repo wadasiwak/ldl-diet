@@ -62,7 +62,32 @@ function ApiKeyPanel() {
         </button>
       </div>
       {msg && <p className="small" style={{ margin: '8px 0 0' }}>{msg}</p>}
+      <ModelPicker />
     </section>
+  )
+}
+
+function ModelPicker() {
+  const model = useApp((s) => s.settings.visionModel ?? 'precise')
+  const setVisionModel = useApp((s) => s.setVisionModel)
+  return (
+    <div style={{ marginTop: 12 }}>
+      <p className="small dim" style={{ margin: '0 0 6px' }}>辨識模型</p>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button
+          className={model === 'precise' ? 'primary' : ''}
+          onClick={() => setVisionModel('precise')}
+        >
+          精準（推薦）
+        </button>
+        <button className={model === 'fast' ? 'primary' : ''} onClick={() => setVisionModel('fast')}>
+          快省
+        </button>
+      </div>
+      <p className="dim" style={{ fontSize: '0.75rem', margin: '6px 0 0' }}>
+        精準＝Sonnet，每張約 NT$0.4，家常多菜合照也認得出；快省＝Haiku，約 1/3 價，適合單品或便當。
+      </p>
+    </div>
   )
 }
 

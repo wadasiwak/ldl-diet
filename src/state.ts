@@ -82,6 +82,7 @@ interface AppState {
   updateMeal: (rec: MealRecord) => void
   deleteMeal: (date: string, id: string) => void
   setTargets: (t: DailyTarget) => void
+  setVisionModel: (m: NonNullable<Settings['visionModel']>) => void
   acceptDisclaimer: () => void
   markBackup: () => void
   /** 匯入備份：整批取代 records（照片另行處理） */
@@ -127,6 +128,7 @@ export const useApp = create<AppState>()(
           return { records }
         }),
       setTargets: (targets) => set((s) => ({ settings: { ...s.settings, targets } })),
+      setVisionModel: (visionModel) => set((s) => ({ settings: { ...s.settings, visionModel } })),
       acceptDisclaimer: () =>
         set((s) => ({ settings: { ...s.settings, disclaimerAcceptedAt: new Date().toISOString() } })),
       markBackup: () =>

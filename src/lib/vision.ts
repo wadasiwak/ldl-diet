@@ -3,8 +3,8 @@
 // e2e 用 window.__mockVision 攔截，零真實呼叫。
 
 import Anthropic from '@anthropic-ai/sdk'
-import { API_KEY_STORAGE } from '../state'
-import { ITEM_CLAMP, type Confidence, type Nutrients } from '../content/types'
+import { API_KEY_STORAGE, useApp } from '../state'
+import { ITEM_CLAMP, VISION_MODEL_ID, type Confidence, type Nutrients } from '../content/types'
 
 export interface RecognizedItem {
   name: string
@@ -95,12 +95,14 @@ const FOOD_SCHEMA = {
   additionalProperties: false,
 } as const
 
-const PROMPT = `你是台灣的營養師助手。請辨識照片中的食物，逐項列出並估算營養。
+const PROMPT = `你是台灣的營養師助手。請仔細辨識照片中的食物，逐項列出並估算營養。
 
 規則：
-- 台灣飲食語境：便當要拆成主菜/配菜/飯，麵食拆主體與配料，飲料獨立一項。
+- 先數清楚照片裡有幾碗/幾盤，一碗一碗來，每碗再拆成個別食物（例：飯、肉、蛋分開列）。
+- 台灣飲食語境：便當拆主菜/配菜/飯，麵食拆主體與配料，湯品列出湯裡的料，飲料獨立一項。
+- 家常菜常見易混淆組合請留意：水煮蛋 vs 豆腐、豬肉片 vs 牛肉片 vs 雞肉、魚肚 vs 雞肉、腐皮 vs 蒟蒻——不確定就寫比較可能的並把 confidence 降為 low。
 - 每項給「這個份量的總量」估計值（不是每100克）：熱量 kcal、飽和脂肪 g、膽固醇 mg、膳食纖維 g。
-- 看不見的油、糖、內餡，以台式外食常態估計，並把該項 confidence 降為 medium 或 low。
+- 看不見的油、糖、內餡，以台式家常/外食常態估計，並把該項 confidence 降為 medium 或 low。
 - portion 用目視描述（一碗、半盒、約200g）。
 - 如果照片不是食物，items 回空陣列，並在 note 說明。
 - 品名一律繁體中文。`
@@ -152,9 +154,10 @@ export async function recognizeFood(base64: string): Promise<VisionOutcome> {
   if (!apiKey) return { ok: false, kind: 'no-key', message: '還沒設定 API key，請先到設定頁貼上。' }
 
   const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true, maxRetries: 0, timeout: 60_000 })
+  const model = VISION_MODEL_ID[useApp.getState().settings.visionModel ?? 'precise']
   try {
     const resp = await client.messages.create({
-      model: 'claude-haiku-4-5',
+      model,
       max_tokens: 2000,
       output_config: { format: { type: 'json_schema', schema: FOOD_SCHEMA as unknown as Record<string, unknown> } },
       messages: [

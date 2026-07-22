@@ -86,12 +86,22 @@ export function suggestedSatFat(kcal: number): number {
   return Math.round((kcal * 0.1) / 9)
 }
 
+/** 拍照辨識模型：precise=Sonnet（預設，較準）、fast=Haiku（約 1/3 價，複雜合照較弱） */
+export type VisionModel = 'precise' | 'fast'
+
+export const VISION_MODEL_ID: Record<VisionModel, string> = {
+  precise: 'claude-sonnet-5',
+  fast: 'claude-haiku-4-5',
+}
+
 export interface Settings {
   targets: DailyTarget
   /** 免責聲明接受時間（null = 未接受，擋首用） */
   disclaimerAcceptedAt: string | null
   /** 最近一次匯出備份時間（提醒「上次備份 N 天前」用） */
   lastBackupAt: string | null
+  /** 拍照辨識模型（舊資料無此欄位時當 precise） */
+  visionModel?: VisionModel
 }
 
 export const NUTRIENT_META: Record<
