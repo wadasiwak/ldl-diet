@@ -267,7 +267,7 @@ try {
     if (cleared.includes('炸排骨便當')) fail('清除後紀錄還在')
     await page.goto(`${BASE}#settings`)
     await page.click('[data-testid="import-btn"]')
-    await page.setInputFiles('input[type="file"][accept="application/json"]', path)
+    await page.setInputFiles('input[type="file"][accept=".json,application/json,text/plain"]', path)
     await page.waitForSelector('[data-testid="backup-msg"]', { timeout: 5000 })
     await page.goto(BASE)
     const restored = await page.textContent('[data-testid="meal-lunch"]')

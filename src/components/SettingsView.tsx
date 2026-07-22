@@ -319,7 +319,7 @@ function BackupPanel() {
       <input
         ref={fileRef}
         type="file"
-        accept="application/json"
+        accept=".json,application/json,text/plain"
         style={{ display: 'none' }}
         onChange={(e) => {
           const f = e.target.files?.[0]
