@@ -293,10 +293,14 @@ try {
     await ctx.close()
   }
 
-  // ---- 8. 歷史頁 + 月曆補登 + 最近吃過 ----
-  console.log('8. 歷史頁 / 月曆補登 / 最近吃過')
+  // ---- 8. 歷史頁 + 月曆補登 + 最近吃過 + 整餐複製 ----
+  console.log('8. 歷史頁 / 月曆補登 / 最近吃過 / 整餐複製')
   {
-    const { ctx, page } = await newPage({ records: seedRecords(OVER_SATFAT_ITEMS) })
+    const TWO_ITEM_MEAL = [
+      ...OVER_SATFAT_ITEMS,
+      { id: 'i2', name: '燙青菜', portion: '一份', nutrients: { kcal: 60, satFat: 0.5, chol: 0, fiber: 3 }, source: 'manual' },
+    ]
+    const { ctx, page } = await newPage({ records: seedRecords(TWO_ITEM_MEAL) })
     await page.goto(`${BASE}#history`)
     await page.waitForSelector('[data-testid="heatmap"]', { timeout: 3000 })
     await page.screenshot({ path: '/tmp/ldl-diet-history.png', fullPage: true })
@@ -309,6 +313,13 @@ try {
     const recents = await page.textContent('[data-testid="recents"]')
     if (!recents.includes('炸排骨便當')) fail('最近吃過沒帶出歷史品項')
     else ok('月曆空白日補登 + 最近吃過一鍵再加')
+    // 整餐複製：兩項的餐要出現組合鍵，點了帶入兩列
+    const combo = await page.textContent('[data-testid="recent-meals"]').catch(() => '')
+    if (!combo.includes('炸排骨便當＋燙青菜') && !combo.includes('燙青菜＋炸排骨便當')) fail(`整餐複製沒出現組合：${combo}`)
+    await page.click('[data-testid="meal-combo"]')
+    const comboRows = await page.$$('[data-testid="review-row"]')
+    if (comboRows.length !== 2) fail(`整餐複製應帶入 2 列，實得 ${comboRows.length}`)
+    else ok('整餐一鍵複製')
     await ctx.close()
   }
   // ---- 9. 目標精靈 + 體重記錄 ----

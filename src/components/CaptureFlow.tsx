@@ -3,6 +3,7 @@ import { useApp, todayStr } from '../state'
 import {
   MEAL_SLOT_LABEL,
   localDateStr,
+  sumItems,
   type FoodItem,
   type MealSlot,
   type Nutrients,
@@ -182,7 +183,12 @@ export default function CaptureFlow({ slot, date }: { slot: MealSlot; date?: str
         )}
       </section>
 
-      {items.length === 0 && <RecentFoods onAdd={(item) => setItems((prev) => [...prev, item])} />}
+      {items.length === 0 && (
+        <>
+          <RecentMeals onAdd={(list) => setItems((prev) => [...prev, ...list])} />
+          <RecentFoods onAdd={(item) => setItems((prev) => [...prev, item])} />
+        </>
+      )}
 
       {entry === 'search' && (
         <FoodSearchPanel
@@ -222,6 +228,59 @@ export default function CaptureFlow({ slot, date }: { slot: MealSlot; date?: str
         </p>
       )}
     </main>
+  )
+}
+
+// ---- 整餐一鍵複製：常吃的固定組合（飯+肉+菜）一次帶入 ---------------------------
+
+function RecentMeals({ onAdd }: { onAdd: (items: FoodItem[]) => void }) {
+  const records = useApp((s) => s.records)
+  const combos = useMemo(() => {
+    // 只收 ≥2 項的餐（單項交給「常吃的」chips），以品項組合去重，頻率優先
+    const agg = new Map<string, { meal: { id: string; items: FoodItem[] }; count: number; lastDate: string }>()
+    for (const [date, meals] of Object.entries(records)) {
+      for (const m of meals) {
+        if (m.items.length < 2) continue
+        const sig = m.items.map((it) => it.name.trim()).sort().join('|')
+        if (!sig) continue
+        const cur = agg.get(sig)
+        if (!cur) agg.set(sig, { meal: m, count: 1, lastDate: date })
+        else {
+          cur.count++
+          if (date > cur.lastDate) {
+            cur.lastDate = date
+            cur.meal = m
+          }
+        }
+      }
+    }
+    return [...agg.values()]
+      .sort((a, b) => b.count - a.count || (a.lastDate < b.lastDate ? 1 : -1))
+      .slice(0, 5)
+  }, [records])
+
+  if (combos.length === 0) return null
+  return (
+    <section className="panel" data-testid="recent-meals">
+      <p className="small dim" style={{ margin: '0 0 8px' }}>整餐複製（一次帶入整組）</p>
+      {combos.map(({ meal, count }) => {
+        const total = sumItems(meal.items)
+        return (
+          <button
+            key={meal.id}
+            style={{ display: 'block', width: '100%', textAlign: 'left', marginBottom: 6 }}
+            data-testid="meal-combo"
+            onClick={() => onAdd(meal.items.map((it) => ({ ...it, id: crypto.randomUUID() })))}
+          >
+            {meal.items.map((it) => it.name).join('＋')}
+            <span className="dim small">
+              {' '}
+              {Math.round(total.kcal)} kcal{count > 1 ? `・吃過 ${count} 次` : ''}
+            </span>
+          </button>
+        )
+      })}
+    </section>
   )
 }
 
