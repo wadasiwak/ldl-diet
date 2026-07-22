@@ -276,10 +276,31 @@ try {
     await ctx.close()
   }
 
-  // ---- 7. 建議引擎（超標飽脂） ----
+  // ---- 7. 建議引擎（超標飽脂 + 跨日纖維警示） ----
   console.log('7. 超標飽脂 → 建議卡')
   {
-    const { ctx, page } = await newPage({ records: seedRecords(OVER_SATFAT_ITEMS) })
+    // 今天超標飽脂 + 前兩天纖維都只有 2g（未達 25）→ 應出現跨日纖維警示
+    const lowFiberDay = (date) => [
+      {
+        id: `lf-${date}`,
+        date,
+        slot: 'lunch',
+        items: [{ id: 'x', name: '白吐司', portion: '兩片', nutrients: { kcal: 300, satFat: 2, chol: 5, fiber: 2 }, source: 'manual' }],
+        photoIds: [],
+        createdAt: new Date().toISOString(),
+      },
+    ]
+    const past = (off) => {
+      const d = new Date()
+      d.setDate(d.getDate() - off)
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    }
+    const records = {
+      ...seedRecords(OVER_SATFAT_ITEMS),
+      [past(1)]: lowFiberDay(past(1)),
+      [past(2)]: lowFiberDay(past(2)),
+    }
+    const { ctx, page } = await newPage({ records })
     await page.goto(BASE)
     await page.waitForSelector('[data-testid="advice"]')
     // 建議菜色依時段不同（早餐避可頌/起司/奶茶、正餐避炸物/排骨…），字表涵蓋各時段的飽脂雷
@@ -289,6 +310,9 @@ try {
     )
     if (!hit) fail(`飽脂超標但 avoid 沒對應詞：${avoid}`)
     else ok('建議卡對應超標狀態')
+    const streak = await page.textContent('[data-testid="fiber-streak"]').catch(() => '')
+    if (!streak.includes('纖維沒達標')) fail(`前兩天纖維不足應出現跨日警示，實得：${streak}`)
+    else ok('跨日纖維警示')
     await page.screenshot({ path: '/tmp/ldl-diet-advice.png', fullPage: true })
     await ctx.close()
   }
