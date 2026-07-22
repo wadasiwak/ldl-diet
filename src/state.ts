@@ -4,6 +4,7 @@ import {
   DEFAULT_TARGET,
   localDateStr,
   type DailyTarget,
+  type LabResult,
   type MealRecord,
   type MealSlot,
   type Settings,
@@ -77,6 +78,12 @@ interface AppState {
   records: Record<string, MealRecord[]>
   /** 體重記錄 kg，key = 'YYYY-MM-DD' */
   weights: Record<string, number>
+  /** 體脂率 % / 腰圍 cm（選填），key = 'YYYY-MM-DD' */
+  body: Record<string, { bf?: number; waist?: number }>
+  /** 喝水杯數（一杯約 240ml），key = 'YYYY-MM-DD' */
+  waters: Record<string, number>
+  /** 血脂檢驗（抽血日 → mg/dL），key = 'YYYY-MM-DD' */
+  labs: Record<string, LabResult>
   settings: Settings
 
   setView: (v: View) => void
@@ -86,10 +93,19 @@ interface AppState {
   setTargets: (t: DailyTarget) => void
   setVisionModel: (m: NonNullable<Settings['visionModel']>) => void
   setWeight: (date: string, kg: number | null) => void
+  setBody: (date: string, patch: { bf?: number | null; waist?: number | null }) => void
+  setWater: (date: string, cups: number) => void
+  setLab: (date: string, lab: LabResult | null) => void
   acceptDisclaimer: () => void
   markBackup: () => void
-  /** 匯入備份：整批取代 records/weights（照片另行處理） */
-  replaceRecords: (records: Record<string, MealRecord[]>, weights?: Record<string, number>) => void
+  /** 匯入備份：整批取代所有資料（照片另行處理） */
+  replaceRecords: (data: {
+    records: Record<string, MealRecord[]>
+    weights?: Record<string, number>
+    body?: Record<string, { bf?: number; waist?: number }>
+    waters?: Record<string, number>
+    labs?: Record<string, LabResult>
+  }) => void
   clearAll: () => void
 }
 
@@ -101,6 +117,9 @@ export const useApp = create<AppState>()(
       view: hashToView(location.hash),
       records: {},
       weights: {},
+      body: {},
+      waters: {},
+      labs: {},
       settings: {
         targets: { ...DEFAULT_TARGET },
         disclaimerAcceptedAt: null,
@@ -140,22 +159,68 @@ export const useApp = create<AppState>()(
           else weights[date] = Math.round(kg * 10) / 10
           return { weights }
         }),
+      setBody: (date, patch) =>
+        set((s) => {
+          const body = { ...s.body }
+          const cur = { ...(body[date] ?? {}) }
+          for (const k of ['bf', 'waist'] as const) {
+            const v = patch[k]
+            if (v === undefined) continue
+            if (v === null || !Number.isFinite(v) || v <= 0) delete cur[k]
+            else cur[k] = Math.round(v * 10) / 10
+          }
+          if (Object.keys(cur).length === 0) delete body[date]
+          else body[date] = cur
+          return { body }
+        }),
+      setWater: (date, cups) =>
+        set((s) => {
+          const waters = { ...s.waters }
+          const v = Math.max(0, Math.min(30, Math.round(cups)))
+          if (v === 0) delete waters[date]
+          else waters[date] = v
+          return { waters }
+        }),
+      setLab: (date, lab) =>
+        set((s) => {
+          const labs = { ...s.labs }
+          if (lab === null) delete labs[date]
+          else labs[date] = lab
+          return { labs }
+        }),
       acceptDisclaimer: () =>
         set((s) => ({ settings: { ...s.settings, disclaimerAcceptedAt: new Date().toISOString() } })),
       markBackup: () =>
         set((s) => ({ settings: { ...s.settings, lastBackupAt: new Date().toISOString() } })),
-      replaceRecords: (records, weights) => set({ records, weights: weights ?? {} }),
+      replaceRecords: (data) =>
+        set({
+          records: data.records,
+          weights: data.weights ?? {},
+          body: data.body ?? {},
+          waters: data.waters ?? {},
+          labs: data.labs ?? {},
+        }),
       clearAll: () =>
         set({
           records: {},
           weights: {},
+          body: {},
+          waters: {},
+          labs: {},
           settings: { targets: { ...DEFAULT_TARGET }, disclaimerAcceptedAt: null, lastBackupAt: null },
         }),
     }),
     {
       name: 'ldl-diet-v1',
       version: 1,
-      partialize: (s) => ({ records: s.records, weights: s.weights, settings: s.settings }),
+      partialize: (s) => ({
+        records: s.records,
+        weights: s.weights,
+        body: s.body,
+        waters: s.waters,
+        labs: s.labs,
+        settings: s.settings,
+      }),
       // schema 變更時在這裡遞增 version 並轉換舊資料
       migrate: (persisted) => persisted as AppState,
     },

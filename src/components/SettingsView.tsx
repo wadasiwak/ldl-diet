@@ -245,6 +245,9 @@ function GoalWizard({ onApply }: { onApply: (kcal: number) => void }) {
 function BackupPanel() {
   const records = useApp((s) => s.records)
   const weights = useApp((s) => s.weights)
+  const body = useApp((s) => s.body)
+  const waters = useApp((s) => s.waters)
+  const labs = useApp((s) => s.labs)
   const settings = useApp((s) => s.settings)
   const markBackup = useApp((s) => s.markBackup)
   const replaceRecords = useApp((s) => s.replaceRecords)
@@ -265,8 +268,8 @@ function BackupPanel() {
   async function onImport(f: File) {
     setBusy(true)
     const r = await importBackup(f)
-    if (r.ok && r.records && r.settings) {
-      replaceRecords(r.records, r.weights)
+    if (r.ok && r.data && r.settings) {
+      replaceRecords(r.data)
       setTargets(r.settings.targets)
     }
     setMsg(r.message)
@@ -291,7 +294,7 @@ function BackupPanel() {
         <button
           data-testid="export-light"
           onClick={() => {
-            exportLight(records, settings, weights)
+            exportLight({ records, weights, body, waters, labs }, settings)
             markBackup()
             setMsg('已下載輕量備份（不含照片）。')
           }}
@@ -302,7 +305,7 @@ function BackupPanel() {
           disabled={busy}
           onClick={() => {
             setBusy(true)
-            void exportFull(records, settings, weights)
+            void exportFull({ records, weights, body, waters, labs }, settings)
               .then(() => {
                 markBackup()
                 setMsg('已下載完整備份（含照片，檔案較大）。')

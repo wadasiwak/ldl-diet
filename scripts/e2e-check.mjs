@@ -341,6 +341,20 @@ try {
     const w = await page.textContent('[data-testid="weight-row"]')
     if (!w.includes('75')) fail(`今日體重應顯示 75，實得：${w}`)
     else ok('目標精靈套用 + 體重同步記錄')
+    // 喝水 +2 杯
+    await page.click('[data-testid="water-add"]')
+    await page.click('[data-testid="water-add"]')
+    const water = await page.textContent('[data-testid="water-count"]')
+    if (!water.includes('2/8')) fail(`喝水計數應 2/8，實得 ${water}`)
+    else ok('喝水記錄')
+    // 血脂檢驗：記一筆 LDL → 表格出現且紅字（≥130）
+    await page.goto(`${BASE}#history`)
+    await page.click('[data-testid="labs-open"]')
+    await page.fill('[data-testid="labs-ldl"]', '149')
+    await page.click('[data-testid="labs-save"]')
+    const labs = await page.textContent('[data-testid="labs"]')
+    if (!labs.includes('149')) fail(`血脂表應含 149，實得：${labs.slice(0, 80)}`)
+    else ok('血脂檢驗記錄')
     await ctx.close()
   }
 } catch (e) {

@@ -94,6 +94,18 @@ export const VISION_MODEL_ID: Record<VisionModel, string> = {
   fast: 'claude-haiku-4-5',
 }
 
+/** 血脂檢驗值（mg/dL，全部選填）。一般參考：LDL<130、HDL 男>40/女>50、TG<150、總膽固醇<200；實際以醫囑為準。 */
+export interface LabResult {
+  /** 低密度膽固醇 LDL-C */
+  ldl?: number
+  /** 高密度膽固醇 HDL-C */
+  hdl?: number
+  /** 三酸甘油酯 TG */
+  tg?: number
+  /** 總膽固醇 TC */
+  tc?: number
+}
+
 export interface Settings {
   targets: DailyTarget
   /** 免責聲明接受時間（null = 未接受，擋首用） */

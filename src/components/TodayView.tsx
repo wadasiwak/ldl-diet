@@ -57,6 +57,7 @@ export default function TodayView() {
         <MealSection key={slot} slot={slot} date={date} />
       ))}
 
+      <WaterRow date={date} />
       <WeightRow date={date} />
       <A2hsHint />
       <div style={{ height: 12 }} />
@@ -64,46 +65,95 @@ export default function TodayView() {
   )
 }
 
-/** 今日體重快速記錄（選填）：長期和飲食趨勢對照用。 */
+/** 今日喝水：一杯約 240ml，目標 8 杯。 */
+function WaterRow({ date }: { date: string }) {
+  const cups = useApp((s) => s.waters[date]) ?? 0
+  const setWater = useApp((s) => s.setWater)
+  return (
+    <section className="panel small" style={{ display: 'flex', alignItems: 'center', gap: 8 }} data-testid="water-row">
+      <span style={{ flexShrink: 0 }}>💧 喝水</span>
+      <span style={{ flex: 1, letterSpacing: 2, overflow: 'hidden', whiteSpace: 'nowrap' }} aria-label={`${cups} 杯，目標 8 杯`}>
+        {Array.from({ length: Math.max(8, cups) }, (_, i) => (
+          <span key={i} style={{ opacity: i < cups ? 1 : 0.25 }}>💧</span>
+        ))}
+      </span>
+      <span className="dim" style={{ flexShrink: 0 }} data-testid="water-count">{cups}/8 杯</span>
+      <button className="small" style={{ flexShrink: 0, padding: '2px 10px' }} onClick={() => setWater(date, cups - 1)} disabled={cups === 0} aria-label="減一杯">
+        −
+      </button>
+      <button className="small" style={{ flexShrink: 0, padding: '2px 10px' }} onClick={() => setWater(date, cups + 1)} data-testid="water-add" aria-label="加一杯">
+        ＋
+      </button>
+    </section>
+  )
+}
+
+/** 今日身體數據快速記錄（全部選填）：體重 / 體脂率 / 腰圍。 */
 function WeightRow({ date }: { date: string }) {
   const weight = useApp((s) => s.weights[date])
+  const body = useApp((s) => s.body[date])
   const setWeight = useApp((s) => s.setWeight)
-  const [draft, setDraft] = useState('')
+  const setBody = useApp((s) => s.setBody)
+  const [kg, setKg] = useState('')
+  const [bf, setBf] = useState('')
+  const [waist, setWaist] = useState('')
   const [editing, setEditing] = useState(false)
 
-  if (weight !== undefined && !editing) {
+  const hasAny = weight !== undefined || body?.bf !== undefined || body?.waist !== undefined
+  if (hasAny && !editing) {
     return (
       <section className="panel small" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }} data-testid="weight-row">
-        <span>⚖️ 今日體重 <strong>{weight}</strong> kg ✓</span>
-        <button className="small" onClick={() => { setDraft(String(weight)); setEditing(true) }}>改</button>
+        <span>
+          ⚖️ {weight !== undefined && <><strong>{weight}</strong> kg　</>}
+          {body?.bf !== undefined && <>體脂 <strong>{body.bf}</strong>%　</>}
+          {body?.waist !== undefined && <>腰圍 <strong>{body.waist}</strong>cm</>}
+        </span>
+        <button
+          className="small"
+          onClick={() => {
+            setKg(weight !== undefined ? String(weight) : '')
+            setBf(body?.bf !== undefined ? String(body.bf) : '')
+            setWaist(body?.waist !== undefined ? String(body.waist) : '')
+            setEditing(true)
+          }}
+        >
+          改
+        </button>
       </section>
     )
   }
   return (
-    <section className="panel small" style={{ display: 'flex', gap: 8, alignItems: 'center' }} data-testid="weight-row">
-      <span style={{ flexShrink: 0 }}>⚖️ 今日體重</span>
-      <input
-        type="number"
-        inputMode="decimal"
-        placeholder="選填 kg"
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        style={{ padding: '4px 8px' }}
-        data-testid="weight-input"
-      />
-      <button
-        className="small"
-        style={{ flexShrink: 0 }}
-        disabled={!(Number(draft) > 0)}
-        data-testid="weight-save"
-        onClick={() => {
-          setWeight(date, Number(draft))
-          setEditing(false)
-          setDraft('')
-        }}
-      >
-        記錄
-      </button>
+    <section className="panel small" data-testid="weight-row">
+      <div style={{ display: 'flex', gap: 6, alignItems: 'flex-end' }}>
+        <label className="dim" style={{ flex: 1 }}>
+          ⚖️ 體重 kg
+          <input type="number" inputMode="decimal" placeholder="選填" value={kg} onChange={(e) => setKg(e.target.value)} style={{ padding: '4px 8px' }} data-testid="weight-input" />
+        </label>
+        <label className="dim" style={{ flex: 1 }}>
+          體脂 %
+          <input type="number" inputMode="decimal" placeholder="選填" value={bf} onChange={(e) => setBf(e.target.value)} style={{ padding: '4px 8px' }} />
+        </label>
+        <label className="dim" style={{ flex: 1 }}>
+          腰圍 cm
+          <input type="number" inputMode="decimal" placeholder="選填" value={waist} onChange={(e) => setWaist(e.target.value)} style={{ padding: '4px 8px' }} />
+        </label>
+        <button
+          className="small"
+          style={{ flexShrink: 0 }}
+          disabled={!(Number(kg) > 0 || Number(bf) > 0 || Number(waist) > 0)}
+          data-testid="weight-save"
+          onClick={() => {
+            if (kg !== '') setWeight(date, Number(kg) || null)
+            setBody(date, { bf: bf === '' ? undefined : Number(bf) || null, waist: waist === '' ? undefined : Number(waist) || null })
+            setEditing(false)
+          }}
+        >
+          記錄
+        </button>
+      </div>
+      <p className="dim" style={{ fontSize: '0.72rem', margin: '6px 0 0' }}>
+        都選填。腰圍是代謝症候群指標之一（一般參考：男 &lt;90cm、女 &lt;80cm）。
+      </p>
     </section>
   )
 }

@@ -124,7 +124,8 @@ export default function HistoryView({ month }: { month?: string }) {
 
       {logged.length >= 2 && <WeekDigest days={logged} targets={targets} />}
       {logged.length >= 2 && <TrendChart days={logged} targets={targets} />}
-      <WeightChart month={m} />
+      <BodyChart month={m} />
+      <LabsPanel />
       {logged.length === 0 && (
         <p className="dim small" style={{ textAlign: 'center', padding: 20 }}>這個月還沒有紀錄</p>
       )}
@@ -192,48 +193,186 @@ function WeekDigest({
   )
 }
 
-/** 體重趨勢（本月有 ≥2 筆才畫）。 */
-function WeightChart({ month }: { month: string }) {
-  const weights = useApp((s) => s.weights)
-  const pts = Object.entries(weights)
-    .filter(([d]) => d.startsWith(month))
-    .sort(([a], [b]) => (a < b ? -1 : 1))
-    .map(([d, kg]) => ({ d, kg }))
-  if (pts.length < 2) return null
-
+/** 簡單折線圖（體重/體脂/腰圍/血脂共用）。 */
+function MiniLine({ pts, unit, color = 'var(--accent)' }: { pts: Array<{ d: string; v: number }>; unit: string; color?: string }) {
   const W = 320
   const H = 110
   const PAD = { l: 38, r: 8, t: 12, b: 18 }
-  const vals = pts.map((p) => p.kg)
-  const min = Math.min(...vals) - 0.5
-  const max = Math.max(...vals) + 0.5
+  const vals = pts.map((p) => p.v)
+  const span = Math.max(Math.max(...vals) - Math.min(...vals), 1)
+  const min = Math.min(...vals) - span * 0.15
+  const max = Math.max(...vals) + span * 0.15
   const x = (i: number) => PAD.l + (i / Math.max(pts.length - 1, 1)) * (W - PAD.l - PAD.r)
   const y = (v: number) => H - PAD.b - ((v - min) / (max - min)) * (H - PAD.t - PAD.b)
   const path = vals.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ')
-  const delta = Math.round((vals[vals.length - 1] - vals[0]) * 10) / 10
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%' }} role="img" aria-label={`趨勢圖（${unit}）`}>
+      {[Math.min(...vals), Math.max(...vals)].map((v, i) => (
+        <text key={i} x={PAD.l - 4} y={y(v) + 3} textAnchor="end" fill="var(--text-dim)" fontSize="9">
+          {Math.round(v * 10) / 10}
+        </text>
+      ))}
+      <path d={path} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" />
+      {pts.map((p, i) => (
+        <circle key={p.d} cx={x(i)} cy={y(p.v)} r="2.5" fill={color} />
+      ))}
+      <text x={PAD.l} y={H - 5} fill="var(--text-dim)" fontSize="9">{pts[0].d.slice(5)}</text>
+      <text x={W - PAD.r} y={H - 5} textAnchor="end" fill="var(--text-dim)" fontSize="9">{pts[pts.length - 1].d.slice(5)}</text>
+    </svg>
+  )
+}
+
+/** 身體數據趨勢：體重 / 體脂 / 腰圍 三線切換（本月 ≥2 筆才畫該線）。 */
+function BodyChart({ month }: { month: string }) {
+  const weights = useApp((s) => s.weights)
+  const body = useApp((s) => s.body)
+  const [tab, setTab] = useState<'kg' | 'bf' | 'waist'>('kg')
+
+  const series: Record<'kg' | 'bf' | 'waist', Array<{ d: string; v: number }>> = { kg: [], bf: [], waist: [] }
+  for (const [d, kg] of Object.entries(weights)) if (d.startsWith(month)) series.kg.push({ d, v: kg })
+  for (const [d, b] of Object.entries(body)) {
+    if (!d.startsWith(month)) continue
+    if (b.bf !== undefined) series.bf.push({ d, v: b.bf })
+    if (b.waist !== undefined) series.waist.push({ d, v: b.waist })
+  }
+  for (const k of ['kg', 'bf', 'waist'] as const) series[k].sort((a, b) => (a.d < b.d ? -1 : 1))
+
+  const META = { kg: { label: '體重', unit: 'kg' }, bf: { label: '體脂', unit: '%' }, waist: { label: '腰圍', unit: 'cm' } }
+  const avail = (['kg', 'bf', 'waist'] as const).filter((k) => series[k].length >= 2)
+  if (avail.length === 0) return null
+  const cur = avail.includes(tab) ? tab : avail[0]
+  const pts = series[cur]
+  const delta = Math.round((pts[pts.length - 1].v - pts[0].v) * 10) / 10
 
   return (
-    <section className="panel" data-testid="weight-chart">
-      <h3 style={{ margin: '0 0 4px' }}>
-        體重 <span className="small" style={{ color: delta <= 0 ? 'var(--accent)' : 'var(--warn)' }}>
-          {delta > 0 ? `+${delta}` : delta} kg
+    <section className="panel" data-testid="body-chart">
+      <div style={{ display: 'flex', gap: 6, alignItems: 'baseline', marginBottom: 4 }}>
+        {avail.map((k) => (
+          <button key={k} className="small" style={{ padding: '3px 10px', color: k === cur ? 'var(--accent)' : 'var(--text-dim)', borderColor: k === cur ? 'var(--accent)' : undefined }} onClick={() => setTab(k)}>
+            {META[k].label}
+          </button>
+        ))}
+        <span className="small" style={{ color: delta <= 0 ? 'var(--accent)' : 'var(--warn)' }}>
+          {delta > 0 ? `+${delta}` : delta} {META[cur].unit}
         </span>
-      </h3>
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%' }} role="img" aria-label="體重趨勢圖">
-        {[min + 0.5, max - 0.5].map((v) => (
-          <text key={v} x={PAD.l - 4} y={y(v) + 3} textAnchor="end" fill="var(--text-dim)" fontSize="9">
-            {Math.round(v * 10) / 10}
-          </text>
-        ))}
-        <path d={path} fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinejoin="round" />
-        {pts.map((p, i) => (
-          <circle key={p.d} cx={x(i)} cy={y(p.kg)} r="2.5" fill="var(--accent)" />
-        ))}
-        <text x={PAD.l} y={H - 5} fill="var(--text-dim)" fontSize="9">{pts[0].d.slice(5)}</text>
-        <text x={W - PAD.r} y={H - 5} textAnchor="end" fill="var(--text-dim)" fontSize="9">
-          {pts[pts.length - 1].d.slice(5)}
-        </text>
-      </svg>
+      </div>
+      <MiniLine pts={pts} unit={META[cur].unit} />
+    </section>
+  )
+}
+
+/** 血脂檢驗記錄：抽血結果（LDL/HDL/TG/TC）不分月份全列，LDL ≥2 筆畫趨勢。 */
+function LabsPanel() {
+  const labs = useApp((s) => s.labs)
+  const setLab = useApp((s) => s.setLab)
+  const [open, setOpen] = useState(false)
+  const [date, setDate] = useState(localDateStr())
+  const [vals, setVals] = useState({ ldl: '', hdl: '', tg: '', tc: '' })
+
+  const rows = Object.entries(labs).sort(([a], [b]) => (a < b ? 1 : -1))
+  const ldlPts = Object.entries(labs)
+    .filter(([, l]) => l.ldl !== undefined)
+    .sort(([a], [b]) => (a < b ? -1 : 1))
+    .map(([d, l]) => ({ d, v: l.ldl! }))
+
+  // 一般參考值上色（僅顯示用，非診斷）：LDL<130、HDL>40、TG<150、TC<200
+  const c = (v: number | undefined, bad: (n: number) => boolean) =>
+    v === undefined ? undefined : { color: bad(v) ? 'var(--danger)' : 'var(--accent)' }
+
+  function save() {
+    const num = (s: string) => (s.trim() === '' ? undefined : Math.max(0, Number(s)) || undefined)
+    const lab = { ldl: num(vals.ldl), hdl: num(vals.hdl), tg: num(vals.tg), tc: num(vals.tc) }
+    if (Object.values(lab).every((v) => v === undefined)) return
+    setLab(date, lab)
+    setVals({ ldl: '', hdl: '', tg: '', tc: '' })
+    setOpen(false)
+  }
+
+  return (
+    <section className="panel" data-testid="labs">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h3 style={{ margin: 0 }}>🩸 血脂檢驗</h3>
+        <button className="small" onClick={() => setOpen(!open)} data-testid="labs-open">
+          {open ? '收起' : '＋ 記一筆抽血結果'}
+        </button>
+      </div>
+      {open && (
+        <div style={{ border: '1px solid var(--line)', borderRadius: 10, padding: 10, marginTop: 8 }}>
+          <label className="small dim">
+            抽血日期
+            <input type="date" value={date} max={localDateStr()} onChange={(e) => setDate(e.target.value)} data-testid="labs-date" />
+          </label>
+          <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+            {(
+              [
+                ['ldl', 'LDL'],
+                ['hdl', 'HDL'],
+                ['tg', '三酸甘油酯'],
+                ['tc', '總膽固醇'],
+              ] as const
+            ).map(([k, label]) => (
+              <label key={k} className="small dim" style={{ flex: 1, minWidth: 0 }}>
+                {label}
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  placeholder="mg/dL"
+                  value={vals[k]}
+                  onChange={(e) => setVals((v) => ({ ...v, [k]: e.target.value }))}
+                  style={{ padding: '4px 6px' }}
+                  data-testid={`labs-${k}`}
+                />
+              </label>
+            ))}
+          </div>
+          <button className="primary small" style={{ marginTop: 8 }} onClick={save} data-testid="labs-save">
+            儲存
+          </button>
+        </div>
+      )}
+      {ldlPts.length >= 2 && (
+        <div style={{ marginTop: 8 }}>
+          <p className="small dim" style={{ margin: '0 0 2px' }}>LDL 趨勢</p>
+          <MiniLine pts={ldlPts} unit="mg/dL" color="var(--c-chol)" />
+        </div>
+      )}
+      {rows.length > 0 ? (
+        <table className="small" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'right', marginTop: 8 }}>
+          <thead>
+            <tr className="dim">
+              <th style={{ textAlign: 'left', fontWeight: 400 }}>日期</th>
+              <th style={{ fontWeight: 400 }}>LDL</th>
+              <th style={{ fontWeight: 400 }}>HDL</th>
+              <th style={{ fontWeight: 400 }}>TG</th>
+              <th style={{ fontWeight: 400 }}>總膽固醇</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(([d, l]) => (
+              <tr key={d}>
+                <td style={{ textAlign: 'left' }}>{d}</td>
+                <td style={c(l.ldl, (n) => n >= 130)}>{l.ldl ?? '—'}</td>
+                <td style={c(l.hdl, (n) => n < 40)}>{l.hdl ?? '—'}</td>
+                <td style={c(l.tg, (n) => n >= 150)}>{l.tg ?? '—'}</td>
+                <td style={c(l.tc, (n) => n >= 200)}>{l.tc ?? '—'}</td>
+                <td>
+                  <button className="small danger" style={{ padding: '0 6px' }} onClick={() => setLab(d, null)} aria-label={`刪除 ${d}`}>
+                    ✕
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : (
+        <p className="dim small" style={{ margin: '8px 0 0' }}>
+          把每次抽血的數字記進來，就能對照飲食紀錄看長期有沒有進步。
+        </p>
+      )}
+      <p className="dim" style={{ fontSize: '0.72rem', margin: '6px 0 0' }}>
+        顏色為一般參考值（LDL&lt;130、HDL&gt;40、TG&lt;150、總膽固醇&lt;200 mg/dL），實際標準依個人風險分級，請以醫師判讀為準。
+      </p>
     </section>
   )
 }

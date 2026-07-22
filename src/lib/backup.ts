@@ -1,17 +1,23 @@
 // 備份分兩檔：輕量 JSON（純紀錄，常用）與含照片完整備份（大檔）。
 // ⚠️ API key 存獨立 localStorage key，「絕不」進任何備份檔。
 
-import type { MealRecord, Settings } from '../content/types'
+import type { LabResult, MealRecord, Settings } from '../content/types'
 import { allPhotos, savePhoto, clearAllPhotos } from './photos'
 
-interface LightBackup {
+/** 備份可含的資料集（records 之外都是後來加的，舊備份檔可能沒有） */
+export interface BackupData {
+  records: Record<string, MealRecord[]>
+  weights?: Record<string, number>
+  body?: Record<string, { bf?: number; waist?: number }>
+  waters?: Record<string, number>
+  labs?: Record<string, LabResult>
+}
+
+interface LightBackup extends BackupData {
   app: 'ldl-diet'
   kind: 'light'
   version: 1
   exportedAt: string
-  records: Record<string, MealRecord[]>
-  /** 體重記錄（v1 早期備份檔可能沒有） */
-  weights?: Record<string, number>
   settings: Settings
 }
 
@@ -31,18 +37,13 @@ function download(blob: Blob, filename: string) {
 
 const stamp = () => new Date().toISOString().slice(0, 10)
 
-export function exportLight(
-  records: Record<string, MealRecord[]>,
-  settings: Settings,
-  weights: Record<string, number> = {},
-) {
+export function exportLight(payload: BackupData, settings: Settings) {
   const data: LightBackup = {
     app: 'ldl-diet',
     kind: 'light',
     version: 1,
     exportedAt: new Date().toISOString(),
-    records,
-    weights,
+    ...payload,
     settings,
   }
   download(new Blob([JSON.stringify(data)], { type: 'application/json' }), `ldl-diet-backup-${stamp()}.json`)
@@ -65,18 +66,13 @@ function base64ToBlob(b64: string): Blob {
 }
 
 /** 含照片完整備份。照片多時檔案可達數十/百 MB——用陣列分段組 Blob，不疊一個大字串。 */
-export async function exportFull(
-  records: Record<string, MealRecord[]>,
-  settings: Settings,
-  weights: Record<string, number> = {},
-) {
+export async function exportFull(payload: BackupData, settings: Settings) {
   const head: Omit<FullBackup, 'photos'> = {
     app: 'ldl-diet',
     kind: 'full',
     version: 1,
     exportedAt: new Date().toISOString(),
-    records,
-    weights,
+    ...payload,
     settings,
   }
   const parts: string[] = [JSON.stringify(head).slice(0, -1), ',"photos":{']
@@ -92,8 +88,7 @@ export async function exportFull(
 export interface ImportResult {
   ok: boolean
   message: string
-  records?: Record<string, MealRecord[]>
-  weights?: Record<string, number>
+  data?: BackupData
   settings?: Settings
 }
 
@@ -129,8 +124,13 @@ export async function importBackup(file: File): Promise<ImportResult> {
   return {
     ok: true,
     message: `已還原 ${days} 天的紀錄${data.kind === 'full' ? '（含照片）' : ''}。`,
-    records: data.records,
-    weights: data.weights ?? {},
+    data: {
+      records: data.records,
+      weights: data.weights ?? {},
+      body: data.body ?? {},
+      waters: data.waters ?? {},
+      labs: data.labs ?? {},
+    },
     settings: data.settings,
   }
 }
