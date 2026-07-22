@@ -1,0 +1,14 @@
+{
+  "name": "降脂食記",
+  "short_name": "降脂食記",
+  "description": "拍照記錄三餐，追蹤熱量、飽和脂肪、膽固醇與膳食纖維。",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#101512",
+  "theme_color": "#101512",
+  "icons": [
+    { "src": "./icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "./icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

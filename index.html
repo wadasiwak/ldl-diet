@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <meta name="theme-color" content="#101512" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="description" content="降脂食記：拍照記錄三餐，追蹤熱量、飽和脂肪、膽固醇與膳食纖維。資料只存在你的手機。" />
+    <meta name="copyright" content="© 2026 wadasiwak. All rights reserved." />
+    <title>降脂食記 🥗 拍照記三餐,顧好膽固醇</title>
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="降脂食記 🥗 拍照記三餐,顧好膽固醇" />
+    <meta property="og:description" content="拍照記錄三餐，自動估算熱量、飽和脂肪、膽固醇與膳食纖維，給你下一餐建議。資料只存在你的手機。" />
+    <meta property="og:url" content="https://wadasiwak.github.io/ldl-diet/" />
+    <meta property="og:image" content="https://wadasiwak.github.io/ldl-diet/og-image.png" />
+    <meta property="og:image:width" content="2400" />
+    <meta property="og:image:height" content="1260" />
+    <meta name="twitter:card" content="summary_large_image" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+    <script>
+      // 匿名流量統計（GoatCounter，無 cookie）。
+      // path 只回報路徑：hash/query 可能含個人狀態，絕不能進 analytics。
+      window.goatcounter = {
+        path: function () {
+          return location.pathname
+        },
+      }
+    </script>
+    <script data-goatcounter="https://wadasiwak.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
+    <script src="https://wadasiwak.github.io/japan-planner/widget.js" data-site="ldl-diet" defer></script>
+  </body>
+</html>

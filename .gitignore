@@ -1,0 +1,6 @@
+node_modules
+dist
+scripts/raw/*
+!scripts/raw/README.md
+*.local
+.DS_Store
