@@ -55,8 +55,18 @@ function MealSection({ slot, date }: { slot: MealSlot; date: string }) {
                 <span className="dim small" style={{ whiteSpace: 'nowrap' }}>{Math.round(it.nutrients.kcal)} kcal</span>
               </div>
             ))}
-            <div className="small dim" style={{ marginTop: 4 }}>
-              小計 {Math.round(sub.kcal)} kcal・飽脂 {sub.satFat.toFixed(1)}g・膽固醇 {Math.round(sub.chol)}mg・纖維 {sub.fiber.toFixed(1)}g
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4, gap: 8 }}>
+              <span className="small dim">
+                小計 {Math.round(sub.kcal)} kcal・飽脂 {sub.satFat.toFixed(1)}g・膽固醇 {Math.round(sub.chol)}mg・纖維 {sub.fiber.toFixed(1)}g
+              </span>
+              <button
+                className="small"
+                style={{ padding: '2px 10px', flexShrink: 0 }}
+                onClick={() => setView({ name: 'day', date })}
+                data-testid="edit-meal"
+              >
+                ✏️ 修改
+              </button>
             </div>
           </div>
         )

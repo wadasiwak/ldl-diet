@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useApp } from '../state'
+import { useApp, todayStr } from '../state'
 import {
   MEAL_SLOT_LABEL,
   sumItems,
@@ -21,7 +21,11 @@ export default function DayView({ date }: { date: string }) {
     <main data-testid="day">
       <header style={{ padding: '18px 16px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h2 style={{ margin: 0 }}>{date}</h2>
-        <button onClick={() => setView({ name: 'history', month: date.slice(0, 7) })}>返回月曆</button>
+        {date === todayStr() ? (
+          <button onClick={() => setView({ name: 'today' })}>回今日</button>
+        ) : (
+          <button onClick={() => setView({ name: 'history', month: date.slice(0, 7) })}>返回月曆</button>
+        )}
       </header>
 
       <section className="panel">
