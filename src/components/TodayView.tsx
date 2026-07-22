@@ -83,7 +83,7 @@ function SetupHints() {
   if (!dismissed.target && isDefaultTarget)
     hints.push({ id: 'target', text: '每日目標還是預設值（1800 kcal）——建議到設定頁依自己的性別、活動量調整，飽和脂肪上限會自動連動。' })
   if (!dismissed.key && noKey)
-    hints.push({ id: 'key', text: '想用「拍照自動辨識」要先到設定頁貼上自己的 API key（頁內有申請教學）。沒有 key 也能用搜尋、手動、零 API 外包記錄。' })
+    hints.push({ id: 'key', text: '想用「拍照自動辨識」要先到設定頁貼上自己的 API 金鑰（頁內有申請教學）。不弄金鑰也行：可以搜尋、手動，或用 ChatGPT 免費辨識。' })
   if (hints.length === 0) return null
 
   function dismiss(id: string) {

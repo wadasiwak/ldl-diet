@@ -70,6 +70,8 @@ export default function CaptureFlow({ slot, date }: { slot: MealSlot; date?: str
         }
       } else {
         setError(result.message)
+        // 沒金鑰或斷網 → 直接帶去免費的 ChatGPT 辨識路線（照片已留著，入帳時照樣保存）
+        if (result.kind === 'no-key' || result.kind === 'offline') setEntry('external')
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
@@ -150,7 +152,7 @@ export default function CaptureFlow({ slot, date }: { slot: MealSlot; date?: str
             ✏️ 手動
           </button>
           <button onClick={() => setEntry(entry === 'external' ? 'none' : 'external')} data-testid="external-btn">
-            🤝 零 API 外包
+            🆓 ChatGPT 辨識
           </button>
         </div>
         <input
@@ -359,11 +361,13 @@ function ExternalPanel({ onParsed }: { onParsed: (items: RecognizedItem[]) => vo
 
   return (
     <section className="panel small" data-testid="external">
-      <p style={{ margin: '0 0 8px' }}>不用 API key 的做法（免費）：</p>
+      <p style={{ margin: '0 0 8px' }}>
+        <strong>用你手機裡的 AI App 免費辨識</strong>（ChatGPT、Gemini、Claude 都可以，不用申請金鑰）：
+      </p>
       <ol style={{ margin: '0 0 10px', paddingLeft: '1.4em' }}>
-        <li>按下面按鈕複製提示詞</li>
-        <li>打開 ChatGPT / Claude / Gemini app，貼上提示詞＋附上餐點照片</li>
-        <li>把它回傳的 JSON 全部複製，貼回下面欄位</li>
+        <li>按下面按鈕，複製「辨識指令」</li>
+        <li>打開你常用的 AI App，<strong>貼上指令＋附上這張餐點照片</strong>送出</li>
+        <li>AI 回覆後，把<strong>整段回覆全部複製</strong>，貼回下面欄位</li>
       </ol>
       <button
         onClick={() => {
@@ -373,11 +377,11 @@ function ExternalPanel({ onParsed }: { onParsed: (items: RecognizedItem[]) => vo
           })
         }}
       >
-        {copied ? '已複製 ✓' : '📋 複製提示詞'}
+        {copied ? '已複製，去 AI App 貼上吧 ✓' : '📋 複製辨識指令'}
       </button>
       <textarea
         rows={5}
-        placeholder="把 AI 回傳的 JSON 貼在這裡"
+        placeholder="AI 回覆的整段文字貼在這裡"
         value={pasted}
         onChange={(e) => {
           setPasted(e.target.value)

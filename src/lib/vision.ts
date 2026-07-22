@@ -112,16 +112,18 @@ export function parseFoodJson(text: string): VisionOutcome {
   let t = text.trim().replace(/^\s*```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '')
   const start = t.indexOf('{')
   const end = t.lastIndexOf('}')
-  if (start < 0 || end <= start) return { ok: false, kind: 'parse', message: '看不懂回傳內容，請確認貼的是 JSON。' }
+  if (start < 0 || end <= start)
+    return { ok: false, kind: 'parse', message: '看不懂剛剛貼的內容——請把 AI 回覆的整段文字「全選複製」再貼一次。' }
   t = t.slice(start, end + 1)
   let raw: unknown
   try {
     raw = JSON.parse(t)
   } catch {
-    return { ok: false, kind: 'parse', message: 'JSON 解析失敗，請重貼一次完整內容。' }
+    return { ok: false, kind: 'parse', message: '內容不完整，請把 AI 的回覆整段重新複製貼上（不要只貼一部分）。' }
   }
   const obj = raw as { items?: unknown; note?: unknown }
-  if (!Array.isArray(obj.items)) return { ok: false, kind: 'parse', message: '缺少 items 清單。' }
+  if (!Array.isArray(obj.items))
+    return { ok: false, kind: 'parse', message: '這段回覆裡沒有食物清單——請確認有先貼「辨識指令」＋照片給 AI，再複製它的回覆。' }
   const items: RecognizedItem[] = []
   for (const it of obj.items as Array<Record<string, unknown>>) {
     if (!it || typeof it.name !== 'string' || !it.name.trim()) continue
@@ -151,7 +153,12 @@ export async function recognizeFood(base64: string): Promise<VisionOutcome> {
   if (window.__mockVision) return window.__mockVision(base64)
 
   const apiKey = getApiKey()
-  if (!apiKey) return { ok: false, kind: 'no-key', message: '還沒設定 API key，請先到設定頁貼上。' }
+  if (!apiKey)
+    return {
+      ok: false,
+      kind: 'no-key',
+      message: '還沒設定 API 金鑰（設定頁有教學）。先幫你切到免費的「ChatGPT 辨識」，照樣能記！',
+    }
 
   const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true, maxRetries: 0, timeout: 60_000 })
   const model = VISION_MODEL_ID[useApp.getState().settings.visionModel ?? 'precise']
@@ -187,7 +194,7 @@ export async function recognizeFood(base64: string): Promise<VisionOutcome> {
       return { ok: false, kind: 'rate-limit', message: `請求太頻繁，請 ${ra} 秒後再試。`, retryAfterSec: ra }
     }
     if (err instanceof Anthropic.APIConnectionError) {
-      return { ok: false, kind: 'offline', message: '目前連不上網路。可以改用「零 API 外包」或手動輸入。' }
+      return { ok: false, kind: 'offline', message: '目前連不上辨識服務。可以改用「ChatGPT 辨識（免費）」或手動輸入。' }
     }
     const msg = err instanceof Error ? err.message : String(err)
     return { ok: false, kind: 'other', message: `辨識失敗：${msg}` }
