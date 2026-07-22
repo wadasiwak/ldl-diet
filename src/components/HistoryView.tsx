@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useApp } from '../state'
 import {
   NUTRIENT_META,
+  localDateStr,
   sumMeals,
   type DailyTarget,
   type MealRecord,
@@ -73,28 +74,33 @@ export default function HistoryView({ month }: { month?: string }) {
           {Array.from({ length: firstDow }).map((_, i) => (
             <div key={`pad${i}`} />
           ))}
-          {dayData.map((d, i) => (
-            <button
-              key={i}
-              onClick={() => d && setView({ name: 'day', date: d.date })}
-              disabled={!d}
-              style={{
-                aspectRatio: '1',
-                padding: 0,
-                borderRadius: 8,
-                border: '1px solid var(--line)',
-                background: d ? HEAT_COLORS[d.met] : 'transparent',
-                color: d ? 'var(--text)' : 'var(--text-dim)',
-                fontSize: '0.8rem',
-              }}
-              title={d ? `達標 ${d.met}/4` : undefined}
-            >
-              {i + 1}
-            </button>
-          ))}
+          {dayData.map((d, i) => {
+            const date = `${m}-${String(i + 1).padStart(2, '0')}`
+            const isFuture = date > localDateStr()
+            return (
+              <button
+                key={i}
+                onClick={() => setView({ name: 'day', date })}
+                disabled={isFuture}
+                style={{
+                  aspectRatio: '1',
+                  padding: 0,
+                  borderRadius: 8,
+                  border: '1px solid var(--line)',
+                  background: d ? HEAT_COLORS[d.met] : 'transparent',
+                  color: d ? 'var(--text)' : 'var(--text-dim)',
+                  fontSize: '0.8rem',
+                  opacity: isFuture ? 0.35 : 1,
+                }}
+                title={d ? `達標 ${d.met}/4` : isFuture ? undefined : '點我補登這一天'}
+              >
+                {i + 1}
+              </button>
+            )
+          })}
         </div>
         <p className="dim" style={{ fontSize: '0.72rem', margin: '8px 0 0' }}>
-          顏色越綠 = 當日四項指標達標越多（熱量/飽脂/膽固醇不超標、纖維達標）。點日期看明細。
+          顏色越綠 = 當日四項指標達標越多（熱量/飽脂/膽固醇不超標、纖維達標）。點日期看明細，空白的日子點進去可以補登。
         </p>
       </section>
 

@@ -282,22 +282,33 @@ try {
     const { ctx, page } = await newPage({ records: seedRecords(OVER_SATFAT_ITEMS) })
     await page.goto(BASE)
     await page.waitForSelector('[data-testid="advice"]')
+    // 建議菜色依時段不同（早餐避可頌/起司/奶茶、正餐避炸物/排骨…），字表涵蓋各時段的飽脂雷
     const avoid = (await page.textContent('[data-testid="advice-avoid"]').catch(() => '')) ?? ''
-    const hit = ['炸', '排骨', '雞皮', '焢肉', '酥', '五花'].some((w) => avoid.includes(w))
+    const hit = ['炸', '排骨', '雞皮', '焢肉', '酥', '五花', '可頌', '起司', '奶茶', '培根', '香腸', '燒餅'].some(
+      (w) => avoid.includes(w),
+    )
     if (!hit) fail(`飽脂超標但 avoid 沒對應詞：${avoid}`)
     else ok('建議卡對應超標狀態')
     await page.screenshot({ path: '/tmp/ldl-diet-advice.png', fullPage: true })
     await ctx.close()
   }
 
-  // ---- 8. 歷史頁截圖 ----
-  console.log('8. 歷史頁')
+  // ---- 8. 歷史頁 + 月曆補登 + 最近吃過 ----
+  console.log('8. 歷史頁 / 月曆補登 / 最近吃過')
   {
     const { ctx, page } = await newPage({ records: seedRecords(OVER_SATFAT_ITEMS) })
     await page.goto(`${BASE}#history`)
     await page.waitForSelector('[data-testid="heatmap"]', { timeout: 3000 })
     await page.screenshot({ path: '/tmp/ldl-diet-history.png', fullPage: true })
-    ok('歷史頁渲染（截圖待人工看）')
+    // 點本月 1 號（過去空白日）→ 日明細 → 補登午餐 → capture 出現「最近吃過」
+    await page.click('[data-testid="heatmap"] button:not([disabled])')
+    await page.waitForSelector('[data-testid="day"]', { timeout: 3000 })
+    await page.click('[data-testid="backfill-lunch"]')
+    await page.waitForSelector('[data-testid="capture"]', { timeout: 3000 })
+    await page.waitForSelector('[data-testid="recents"]', { timeout: 3000 }).catch(() => fail('補登頁沒有「最近吃過」'))
+    const recents = await page.textContent('[data-testid="recents"]')
+    if (!recents.includes('炸排骨便當')) fail('最近吃過沒帶出歷史品項')
+    else ok('月曆空白日補登 + 最近吃過一鍵再加')
     await ctx.close()
   }
 } catch (e) {

@@ -1,18 +1,46 @@
+import { useState } from 'react'
 import { useApp, todayStr } from '../state'
-import { MEAL_SLOTS, MEAL_SLOT_LABEL, sumItems, sumMeals, type MealSlot } from '../content/types'
+import {
+  MEAL_SLOTS,
+  MEAL_SLOT_LABEL,
+  localDateStr,
+  sumItems,
+  sumMeals,
+  type MealRecord,
+  type MealSlot,
+} from '../content/types'
 import RingGauges from './RingGauges'
 import AdviceCard from './AdviceCard'
+
+/** 連續記錄天數（今天還沒記就從昨天起算，不打斷 streak） */
+function streakDays(records: Record<string, MealRecord[]>): number {
+  const d = new Date()
+  if (!records[localDateStr(d)]?.length) d.setDate(d.getDate() - 1)
+  let n = 0
+  while (records[localDateStr(d)]?.length) {
+    n++
+    d.setDate(d.getDate() - 1)
+  }
+  return n
+}
 
 export default function TodayView() {
   const date = todayStr()
   const meals = useApp((s) => s.records[date]) ?? []
+  const records = useApp((s) => s.records)
   const targets = useApp((s) => s.settings.targets)
   const consumed = sumMeals(meals)
+  const streak = streakDays(records)
 
   return (
     <main data-testid="today">
-      <header style={{ padding: '18px 16px 0' }}>
+      <header style={{ padding: '18px 16px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
         <h2 style={{ margin: 0 }}>今日 <span className="dim small">{date}</span></h2>
+        {streak >= 2 && (
+          <span className="small" style={{ color: 'var(--warn)' }} title="連續記錄天數">
+            🔥 {streak} 天
+          </span>
+        )}
       </header>
 
       <section className="panel" data-testid="rings">
@@ -25,8 +53,36 @@ export default function TodayView() {
         <MealSection key={slot} slot={slot} date={date} />
       ))}
 
+      <A2hsHint />
       <div style={{ height: 12 }} />
     </main>
+  )
+}
+
+/** iOS Safari 加入主畫面提示：像 App 用＋避免 Safari 定期清掉本機資料。 */
+function A2hsHint() {
+  const [hidden, setHidden] = useState(localStorage.getItem('ldl-diet-a2hs') === '1')
+  const isIos = /iPhone|iPad|iPod/.test(navigator.userAgent)
+  const standalone =
+    (navigator as { standalone?: boolean }).standalone === true ||
+    matchMedia('(display-mode: standalone)').matches
+  if (hidden || !isIos || standalone) return null
+  return (
+    <section className="panel small" style={{ borderColor: 'color-mix(in srgb, var(--warn) 40%, transparent)' }}>
+      📌 建議把本站<strong>加入主畫面</strong>（Safari 分享鍵 → 加入主畫面）：開起來像 App，
+      而且 Safari 對太久沒用的網站會清資料，加入主畫面能避免紀錄被清掉。
+      <div style={{ marginTop: 8 }}>
+        <button
+          className="small"
+          onClick={() => {
+            localStorage.setItem('ldl-diet-a2hs', '1')
+            setHidden(true)
+          }}
+        >
+          知道了
+        </button>
+      </div>
+    </section>
   )
 }
 

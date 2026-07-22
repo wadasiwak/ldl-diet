@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useApp, todayStr } from '../state'
 import {
   MEAL_SLOT_LABEL,
@@ -180,6 +180,8 @@ export default function CaptureFlow({ slot, date }: { slot: MealSlot; date?: str
         )}
       </section>
 
+      {items.length === 0 && <RecentFoods onAdd={(item) => setItems((prev) => [...prev, item])} />}
+
       {entry === 'search' && (
         <FoodSearchPanel
           onAdd={(item) => setItems((prev) => [...prev, item])}
@@ -218,6 +220,46 @@ export default function CaptureFlow({ slot, date }: { slot: MealSlot; date?: str
         </p>
       )}
     </main>
+  )
+}
+
+// ---- 最近吃過：一鍵再加（常吃同樣早餐的殺手級捷徑） -----------------------------
+
+function RecentFoods({ onAdd }: { onAdd: (item: FoodItem) => void }) {
+  const records = useApp((s) => s.records)
+  const recents = useMemo(() => {
+    const seen = new Set<string>()
+    const out: FoodItem[] = []
+    for (const date of Object.keys(records).sort().reverse()) {
+      for (const m of records[date]) {
+        for (const it of m.items) {
+          if (!it.name.trim() || seen.has(it.name)) continue
+          seen.add(it.name)
+          out.push(it)
+          if (out.length >= 12) return out
+        }
+      }
+    }
+    return out
+  }, [records])
+
+  if (recents.length === 0) return null
+  return (
+    <section className="panel" data-testid="recents">
+      <p className="small dim" style={{ margin: '0 0 8px' }}>最近吃過（點一下直接再加一份）</p>
+      <div className="chips">
+        {recents.map((it) => (
+          <button
+            key={it.id}
+            className="chip"
+            style={{ cursor: 'pointer' }}
+            onClick={() => onAdd({ ...it, id: crypto.randomUUID() })}
+          >
+            {it.name} <span className="dim">{Math.round(it.nutrients.kcal)}k</span>
+          </button>
+        ))}
+      </div>
+    </section>
   )
 }
 

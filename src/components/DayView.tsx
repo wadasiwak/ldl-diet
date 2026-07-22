@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useApp, todayStr } from '../state'
 import {
+  MEAL_SLOTS,
   MEAL_SLOT_LABEL,
   sumItems,
   sumMeals,
@@ -37,9 +38,19 @@ export default function DayView({ date }: { date: string }) {
       ))}
 
       <div style={{ padding: '0 12px 16px' }}>
-        <button style={{ width: '100%' }} onClick={() => setView({ name: 'capture', slot: 'snack', date })}>
-          ＋ 補登這一天
-        </button>
+        <p className="small dim" style={{ margin: '0 0 6px' }}>＋ 補登這一天：</p>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {MEAL_SLOTS.map((slot) => (
+            <button
+              key={slot}
+              style={{ flex: 1 }}
+              onClick={() => setView({ name: 'capture', slot, date })}
+              data-testid={`backfill-${slot}`}
+            >
+              {MEAL_SLOT_LABEL[slot].slice(0, 2)}
+            </button>
+          ))}
+        </div>
       </div>
     </main>
   )
