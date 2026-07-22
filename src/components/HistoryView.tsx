@@ -122,13 +122,15 @@ export default function HistoryView({ month }: { month?: string }) {
         )}
       </section>
 
+      {logged.length === 0 && (
+        <p className="dim small" style={{ textAlign: 'center', padding: '4px 20px' }}>
+          這個月還沒有飲食紀錄——點月曆上的日期就能補登。
+        </p>
+      )}
       {logged.length >= 2 && <WeekDigest days={logged} targets={targets} />}
       {logged.length >= 2 && <TrendChart days={logged} targets={targets} />}
       <BodyChart month={m} />
       <LabsPanel />
-      {logged.length === 0 && (
-        <p className="dim small" style={{ textAlign: 'center', padding: 20 }}>這個月還沒有紀錄</p>
-      )}
     </main>
   )
 }
@@ -266,6 +268,7 @@ function LabsPanel() {
   const labs = useApp((s) => s.labs)
   const setLab = useApp((s) => s.setLab)
   const [open, setOpen] = useState(false)
+  const [armDelete, setArmDelete] = useState<string | null>(null)
   const [date, setDate] = useState(localDateStr())
   const [vals, setVals] = useState({ ldl: '', hdl: '', tg: '', tc: '' })
 
@@ -356,10 +359,16 @@ function LabsPanel() {
                 <td style={c(l.hdl, (n) => n < 40)}>{l.hdl ?? '—'}</td>
                 <td style={c(l.tg, (n) => n >= 150)}>{l.tg ?? '—'}</td>
                 <td style={c(l.tc, (n) => n >= 200)}>{l.tc ?? '—'}</td>
-                <td>
-                  <button className="small danger" style={{ padding: '0 6px' }} onClick={() => setLab(d, null)} aria-label={`刪除 ${d}`}>
-                    ✕
-                  </button>
+                <td style={{ whiteSpace: 'nowrap' }}>
+                  {armDelete === d ? (
+                    <button className="small danger" onClick={() => { setLab(d, null); setArmDelete(null) }}>
+                      確定刪？
+                    </button>
+                  ) : (
+                    <button className="small danger" style={{ padding: '0 8px' }} onClick={() => setArmDelete(d)} aria-label={`刪除 ${d}`}>
+                      ✕
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}

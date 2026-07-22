@@ -138,6 +138,10 @@ const CASES = [
   ['兩份', 2],
   ['１５０ml', 150],
   ['適量', null],
+  // 敘述句不得誤判為數量（UX 走查 P0：曾把「一些」當 1 造成翻倍）
+  ['大概吃了一些', null],
+  ['一點點', null],
+  ['十分飽', null],
 ]
 for (const [input, expect] of CASES) {
   const got = portion.parseAmount(input)

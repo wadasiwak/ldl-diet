@@ -383,7 +383,10 @@ function FoodSearchPanel({ onAdd }: { onAdd: (item: FoodItem) => void }) {
               </button>
             ))}
             {q.trim() && results.length === 0 && (
-              <p className="dim small">找不到「{q}」，改用拍照或手動輸入吧。</p>
+              <p className="dim small">
+                找不到「{q}」。手搖飲、外食組合這類資料庫沒有的，最適合用「📷 拍照辨識」或「🆓 ChatGPT
+                辨識」；簡單的也可以手動輸入。
+              </p>
             )}
           </div>
         </>
@@ -418,6 +421,7 @@ function ExternalPanel({ onParsed }: { onParsed: (items: RecognizedItem[]) => vo
   const [copied, setCopied] = useState(false)
   const [pasted, setPasted] = useState('')
   const [err, setErr] = useState<string | null>(null)
+  const [showPrompt, setShowPrompt] = useState(false)
 
   function parse() {
     const r = parseFoodJson(pasted)
@@ -440,13 +444,23 @@ function ExternalPanel({ onParsed }: { onParsed: (items: RecognizedItem[]) => vo
       <button
         onClick={() => {
           void copyText(buildRecognizePrompt()).then((ok) => {
-            setCopied(ok)
+            if (!ok) {
+              setShowPrompt(true) // 複製被擋 → 顯示全文手動複製
+              return
+            }
+            setCopied(true)
             setTimeout(() => setCopied(false), 2000)
           })
         }}
       >
         {copied ? '已複製，去 AI App 貼上吧 ✓' : '📋 複製辨識指令'}
       </button>
+      {showPrompt && (
+        <div style={{ marginTop: 8 }}>
+          <p style={{ color: 'var(--warn)', margin: '0 0 4px' }}>自動複製被擋下了——請長按全選複製：</p>
+          <textarea readOnly rows={6} value={buildRecognizePrompt()} onFocus={(e) => e.target.select()} />
+        </div>
+      )}
       <textarea
         rows={5}
         placeholder="AI 回覆的整段文字貼在這裡"

@@ -8,20 +8,24 @@ const CN: Record<string, number> = {
   半: 0.5, 一: 1, 兩: 2, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 十: 10,
 }
 
+/** 中文數量只認「整串就是量詞表達」的字串（半碗、一碗、兩份、一碗半），
+ * 避免敘述句被誤判（「大概吃了一些」的「一」不是數量）。 */
+const CN_QTY_RE =
+  /^[約大概估\s]*(半|[一兩二三四五六七八九十])\s*[碗份顆支片塊杯個盒袋包根條球匙口罐瓶碟盤]?\s*(半)?\s*$/u
+
 export function parseAmount(s: string): number | null {
   if (!s) return null
-  const t = s.replace(/[０-９]/g, (d) => String.fromCharCode(d.charCodeAt(0) - 0xfee0))
+  const t = s.replace(/[０-９]/g, (d) => String.fromCharCode(d.charCodeAt(0) - 0xfee0)).trim()
+  // 有阿拉伯數字：取第一組（約200g、2支、約1碗（200g）都適用）
   const m = t.match(/\d+(?:\.\d+)?/)
   if (m) return parseFloat(m[0])
-  for (let i = 0; i < t.length; i++) {
-    const v = CN[t[i]]
-    if (v !== undefined) {
-      // 「一碗半」= 1.5：數字後面（跨過量詞）還有個「半」
-      if (v !== 0.5 && t.includes('半', i + 1)) return v + 0.5
-      return v
-    }
-  }
-  return null
+  // 沒有數字：整串必須是純量詞表達才認
+  const cm = t.match(CN_QTY_RE)
+  if (!cm) return null
+  const base = CN[cm[1]]
+  if (base === undefined) return null
+  if (base !== 0.5 && cm[2]) return base + 0.5
+  return base
 }
 
 /** 新舊份量的比例；任一邊解析不出、比例=1 或離譜（>50 倍）都回 null（不換算） */

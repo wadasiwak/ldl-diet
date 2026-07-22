@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { NUTRIENT_META, sumItems, type FoodItem, type NutrientKey } from '../content/types'
+import { ITEM_CLAMP, NUTRIENT_META, sumItems, type FoodItem, type NutrientKey } from '../content/types'
 import { scaleNutrients, scaleRatio } from '../lib/portion'
 
 const KEYS: NutrientKey[] = ['kcal', 'satFat', 'chol', 'fiber']
@@ -91,7 +91,8 @@ export default function ReviewTable({
                   onChange={(e) =>
                     patch(it.id, (x) => ({
                       ...x,
-                      nutrients: { ...x.nutrients, [k]: Number(e.target.value) || 0 },
+                      // 手動輸入也吃單項合理上界（vision 路線本來就有 clamp）
+                      nutrients: { ...x.nutrients, [k]: Math.min(Math.max(Number(e.target.value) || 0, 0), ITEM_CLAMP[k]) },
                     }))
                   }
                   style={{ padding: '4px 6px' }}

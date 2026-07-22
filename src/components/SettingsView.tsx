@@ -163,8 +163,12 @@ function GoalWizard({ onApply }: { onApply: (kcal: number) => void }) {
   const [goal, setGoal] = useState(0)
   const [applied, setApplied] = useState<number | null>(null)
 
+  const rangeErrors: string[] = []
+  if (age !== '' && !(Number(age) >= 18 && Number(age) <= 100)) rangeErrors.push('年齡需 18–100')
+  if (height !== '' && !(Number(height) >= 120 && Number(height) <= 220)) rangeErrors.push('身高需 120–220 cm')
+  if (weight !== '' && !(Number(weight) >= 30 && Number(weight) <= 250)) rangeErrors.push('體重需 30–250 kg')
   const valid =
-    Number(age) >= 18 && Number(age) <= 100 && Number(height) >= 120 && Number(height) <= 220 && Number(weight) >= 30 && Number(weight) <= 250
+    age !== '' && height !== '' && weight !== '' && rangeErrors.length === 0
   const result = valid
     ? suggestKcalTarget({ sex, age: Number(age), heightCm: Number(height), weightKg: Number(weight), activity, goalAdjust: goal })
     : null
@@ -212,6 +216,11 @@ function GoalWizard({ onApply }: { onApply: (kcal: number) => void }) {
           ))}
         </select>
       </label>
+      {rangeErrors.length > 0 && (
+        <p className="small" style={{ margin: '8px 0 0', color: 'var(--danger)' }} data-testid="wizard-range-error">
+          {rangeErrors.join('、')}
+        </p>
+      )}
       {result && (
         <p className="small" style={{ margin: '10px 0 6px' }} data-testid="wizard-result">
           估計每日消耗約 <strong>{result.tdee}</strong> kcal → 建議目標 <strong style={{ color: 'var(--accent)' }}>{result.target}</strong> kcal
@@ -236,7 +245,8 @@ function GoalWizard({ onApply }: { onApply: (kcal: number) => void }) {
         <button onClick={() => setOpen(false)}>關閉</button>
       </div>
       <p className="dim" style={{ fontSize: '0.72rem', margin: '8px 0 0' }}>
-        用 Mifflin-St Jeor 公式估算，輸入的資料只算不存。結果是一般參考值，有慢性病或特殊需求請以營養師/醫師建議為準。
+        用 Mifflin-St Jeor 公式估算。性別、年齡、身高只算不存；體重會順手記進今天的體重紀錄（可在今日頁修改）。
+        結果是一般參考值，有慢性病或特殊需求請以營養師/醫師建議為準。
       </p>
     </div>
   )

@@ -29,9 +29,17 @@ export default function AdviceCard({
   const fiberMissDays = pastDays.filter((d) => sumMeals(records[d]).fiber < targets.fiber).length
   const fiberStreak = pastDays.length >= 2 && fiberMissDays >= 2
 
+  const [fallbackText, setFallbackText] = useState<string | null>(null)
+
   async function onCopy() {
-    const ok = await copyText(buildAdvicePrompt(todayStr(), meals, targets))
-    setCopied(ok)
+    const text = buildAdvicePrompt(todayStr(), meals, targets)
+    const ok = await copyText(text)
+    if (!ok) {
+      // 複製被瀏覽器擋下（隱私模式等）→ 顯示全文讓用戶手動複製
+      setFallbackText(text)
+      return
+    }
+    setCopied(true)
     setTimeout(() => setCopied(false), 2500)
   }
 
@@ -68,6 +76,15 @@ export default function AdviceCard({
       )}
       {advice.fiberTip && (
         <p className="small" style={{ margin: fiberStreak ? '4px 0 0' : '10px 0 0', color: 'var(--c-fiber)' }}>🌿 {advice.fiberTip}</p>
+      )}
+      {fallbackText && (
+        <div style={{ marginTop: 10 }}>
+          <p className="small" style={{ color: 'var(--warn)', margin: '0 0 4px' }}>
+            自動複製被擋下了——請長按下面文字全選複製：
+          </p>
+          <textarea readOnly rows={5} value={fallbackText} onFocus={(e) => e.target.select()} />
+          <button className="small" style={{ marginTop: 4 }} onClick={() => setFallbackText(null)}>關閉</button>
+        </div>
       )}
       <p className="dim" style={{ fontSize: '0.72rem', margin: '10px 0 0' }}>
         一般飲食原則參考，非醫療建議；估計值有誤差，請以就醫追蹤為準。

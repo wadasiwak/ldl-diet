@@ -1,7 +1,7 @@
 // 備份分兩檔：輕量 JSON（純紀錄，常用）與含照片完整備份（大檔）。
 // ⚠️ API key 存獨立 localStorage key，「絕不」進任何備份檔。
 
-import type { LabResult, MealRecord, Settings } from '../content/types'
+import { localDateStr, type LabResult, type MealRecord, type Settings } from '../content/types'
 import { allPhotos, savePhoto, clearAllPhotos } from './photos'
 
 /** 備份可含的資料集（records 之外都是後來加的，舊備份檔可能沒有） */
@@ -35,7 +35,8 @@ function download(blob: Blob, filename: string) {
   setTimeout(() => URL.revokeObjectURL(a.href), 10_000)
 }
 
-const stamp = () => new Date().toISOString().slice(0, 10)
+// 檔名用本地日期（toISOString 在台灣凌晨會變前一天）
+const stamp = () => localDateStr()
 
 export function exportLight(payload: BackupData, settings: Settings) {
   const data: LightBackup = {
