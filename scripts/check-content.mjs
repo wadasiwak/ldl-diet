@@ -127,6 +127,27 @@ for (const q of ['白飯', '雞', '豆漿', '豆腐', '香蕉']) {
   if (!foods.some((f) => f.n.includes(q))) err(`常見食物「${q}」找不到`)
 }
 
+console.log('== 份量解析 ==')
+const portion = await bundleTs('src/lib/portion.ts')
+const CASES = [
+  ['約500g', 500],
+  ['250g', 250],
+  ['一碗', 1],
+  ['半碗', 0.5],
+  ['一碗半', 1.5],
+  ['兩份', 2],
+  ['１５０ml', 150],
+  ['適量', null],
+]
+for (const [input, expect] of CASES) {
+  const got = portion.parseAmount(input)
+  if (got !== expect) err(`parseAmount('${input}') 應為 ${expect}，實得 ${got}`)
+}
+if (portion.scaleRatio('約500g', '250g') !== 0.5) err(`scaleRatio 500→250 應 0.5`)
+if (portion.scaleRatio('一碗', '一碗') !== null) err(`同份量不應換算`)
+if (portion.scaleRatio('適量', '100g') !== null) err(`解析不出不應換算`)
+console.log(`  ${CASES.length} 個解析案例`)
+
 console.log('== 安全欄位 ==')
 const disclaimer = readFileSync(join(root, 'src/components/DisclaimerModal.tsx'), 'utf8')
 for (const kw of ['非醫療建議', '就醫', '停藥']) {

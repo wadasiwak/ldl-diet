@@ -1,6 +1,28 @@
+import { useEffect, useState } from 'react'
 import { NUTRIENT_META, sumItems, type FoodItem, type NutrientKey } from '../content/types'
+import { scaleNutrients, scaleRatio } from '../lib/portion'
 
 const KEYS: NutrientKey[] = ['kcal', 'satFat', 'chol', 'fiber']
+
+/** 份量欄：離開欄位（或 Enter）才 commit，避免逐鍵觸發等比換算。 */
+function PortionInput({ value, onCommit }: { value: string; onCommit: (v: string) => void }) {
+  const [draft, setDraft] = useState(value)
+  useEffect(() => setDraft(value), [value])
+  return (
+    <input
+      type="text"
+      value={draft}
+      placeholder="份量"
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => draft !== value && onCommit(draft)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+      }}
+      style={{ flex: 1 }}
+      data-testid="row-portion"
+    />
+  )
+}
 
 /** 可編輯確認表：辨識/搜尋/手動加入的項目在入帳前都經過這裡。低信心列標黃。 */
 export default function ReviewTable({
@@ -19,6 +41,9 @@ export default function ReviewTable({
   return (
     <section className="panel" data-testid="review">
       <h3 style={{ margin: '0 0 4px' }}>確認內容 <span className="dim small">數字都可以改</span></h3>
+      <p className="dim" style={{ fontSize: '0.75rem', margin: '0 0 4px' }}>
+        改份量的數字會自動等比換算（如 500g→250g 熱量減半、一碗→半碗）
+      </p>
       {items.map((it) => (
         <div
           key={it.id}
@@ -38,12 +63,18 @@ export default function ReviewTable({
               style={{ flex: 2 }}
               data-testid="row-name"
             />
-            <input
-              type="text"
+            <PortionInput
               value={it.portion}
-              placeholder="份量"
-              onChange={(e) => patch(it.id, (x) => ({ ...x, portion: e.target.value }))}
-              style={{ flex: 1 }}
+              onCommit={(newPortion) =>
+                patch(it.id, (x) => {
+                  const r = scaleRatio(x.portion, newPortion)
+                  return {
+                    ...x,
+                    portion: newPortion,
+                    nutrients: r ? scaleNutrients(x.nutrients, r) : x.nutrients,
+                  }
+                })
+              }
             />
             <button className="danger" onClick={() => onChange(items.filter((x) => x.id !== it.id))} aria-label="刪除">
               ✕

@@ -195,7 +195,14 @@ try {
     await page.waitForSelector('[data-testid="review"]', { timeout: 10000 })
     const rows = await page.$$('[data-testid="review-row"]')
     if (rows.length !== 2) fail(`mock 應回 2 項，實得 ${rows.length}`)
-    // 改第一列 kcal 320 → 400
+    // 改份量 一支 → 2支：四值應等比 ×2（kcal 320→640）
+    const portionInput = await rows[0].$('[data-testid="row-portion"]')
+    await portionInput.fill('2支')
+    await portionInput.press('Enter')
+    const scaled = await (await rows[0].$('[data-testid="row-kcal"]')).inputValue()
+    if (scaled !== '640') fail(`份量×2 後 kcal 應 640，實得 ${scaled}`)
+    else ok('改份量等比換算')
+    // 改第一列 kcal → 400
     const kcalInput = await rows[0].$('[data-testid="row-kcal"]')
     await kcalInput.fill('400')
     const total = await page.textContent('[data-testid="review-total"]')
