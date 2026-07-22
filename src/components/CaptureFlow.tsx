@@ -230,34 +230,43 @@ export default function CaptureFlow({ slot, date }: { slot: MealSlot; date?: str
 function RecentFoods({ onAdd }: { onAdd: (item: FoodItem) => void }) {
   const records = useApp((s) => s.records)
   const recents = useMemo(() => {
-    const seen = new Set<string>()
-    const out: FoodItem[] = []
-    for (const date of Object.keys(records).sort().reverse()) {
-      for (const m of records[date]) {
+    // 同名彙總：吃過次數多的排前面，次數相同比誰比較近期；營養值用最近那一筆
+    const agg = new Map<string, { item: FoodItem; count: number; lastDate: string }>()
+    for (const [date, meals] of Object.entries(records)) {
+      for (const m of meals) {
         for (const it of m.items) {
-          if (!it.name.trim() || seen.has(it.name)) continue
-          seen.add(it.name)
-          out.push(it)
-          if (out.length >= 12) return out
+          const name = it.name.trim()
+          if (!name) continue
+          const cur = agg.get(name)
+          if (!cur) agg.set(name, { item: it, count: 1, lastDate: date })
+          else {
+            cur.count++
+            if (date > cur.lastDate) {
+              cur.lastDate = date
+              cur.item = it
+            }
+          }
         }
       }
     }
-    return out
+    return [...agg.values()]
+      .sort((a, b) => b.count - a.count || (a.lastDate < b.lastDate ? 1 : -1))
+      .slice(0, 12)
   }, [records])
 
   if (recents.length === 0) return null
   return (
     <section className="panel" data-testid="recents">
-      <p className="small dim" style={{ margin: '0 0 8px' }}>最近吃過（點一下直接再加一份）</p>
+      <p className="small dim" style={{ margin: '0 0 8px' }}>常吃的（依次數排序，點一下直接再加一份）</p>
       <div className="chips">
-        {recents.map((it) => (
+        {recents.map(({ item, count }) => (
           <button
-            key={it.id}
+            key={item.name}
             className="chip"
             style={{ cursor: 'pointer' }}
-            onClick={() => onAdd({ ...it, id: crypto.randomUUID() })}
+            onClick={() => onAdd({ ...item, id: crypto.randomUUID() })}
           >
-            {it.name} <span className="dim">{Math.round(it.nutrients.kcal)}k</span>
+            {item.name} <span className="dim">{Math.round(item.nutrients.kcal)}k{count > 1 ? ` ×${count}` : ''}</span>
           </button>
         ))}
       </div>
