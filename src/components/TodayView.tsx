@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useApp, todayStr } from '../state'
 import {
+  DEFAULT_TARGET,
   MEAL_SLOTS,
   MEAL_SLOT_LABEL,
   localDateStr,
@@ -11,6 +12,7 @@ import {
 } from '../content/types'
 import RingGauges from './RingGauges'
 import AdviceCard from './AdviceCard'
+import { getApiKey } from '../lib/vision'
 
 /** 連續記錄天數（今天還沒記就從昨天起算，不打斷 streak） */
 function streakDays(records: Record<string, MealRecord[]>): number {
@@ -47,6 +49,8 @@ export default function TodayView() {
         <RingGauges consumed={consumed} targets={targets} />
       </section>
 
+      <SetupHints />
+
       <AdviceCard consumed={consumed} targets={targets} meals={meals} />
 
       {MEAL_SLOTS.map((slot) => (
@@ -56,6 +60,54 @@ export default function TodayView() {
       <A2hsHint />
       <div style={{ height: 12 }} />
     </main>
+  )
+}
+
+/** 首用引導：目標還是預設值 / 還沒設 API key 時各提示一條，完成或按知道了就消失。 */
+function SetupHints() {
+  const targets = useApp((s) => s.settings.targets)
+  const setView = useApp((s) => s.setView)
+  const [dismissed, setDismissed] = useState<Record<string, boolean>>({
+    target: localStorage.getItem('ldl-diet-hint-target') === '1',
+    key: localStorage.getItem('ldl-diet-hint-key') === '1',
+  })
+
+  const isDefaultTarget =
+    targets.kcal === DEFAULT_TARGET.kcal &&
+    targets.satFat === DEFAULT_TARGET.satFat &&
+    targets.chol === DEFAULT_TARGET.chol &&
+    targets.fiber === DEFAULT_TARGET.fiber
+  const noKey = !getApiKey()
+
+  const hints: Array<{ id: string; text: string }> = []
+  if (!dismissed.target && isDefaultTarget)
+    hints.push({ id: 'target', text: '每日目標還是預設值（1800 kcal）——建議到設定頁依自己的性別、活動量調整，飽和脂肪上限會自動連動。' })
+  if (!dismissed.key && noKey)
+    hints.push({ id: 'key', text: '想用「拍照自動辨識」要先到設定頁貼上自己的 API key（頁內有申請教學）。沒有 key 也能用搜尋、手動、零 API 外包記錄。' })
+  if (hints.length === 0) return null
+
+  function dismiss(id: string) {
+    localStorage.setItem(`ldl-diet-hint-${id}`, '1')
+    setDismissed((d) => ({ ...d, [id]: true }))
+  }
+
+  return (
+    <section className="panel small" data-testid="setup-hints" style={{ borderColor: 'color-mix(in srgb, var(--accent) 35%, transparent)' }}>
+      <p style={{ margin: '0 0 6px', fontWeight: 700 }}>🚀 開始之前</p>
+      {hints.map((h) => (
+        <div key={h.id} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 8 }}>
+          <span style={{ flex: 1 }}>{h.text}</span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flexShrink: 0 }}>
+            <button className="small primary" style={{ padding: '2px 10px' }} onClick={() => setView({ name: 'settings' })}>
+              去設定
+            </button>
+            <button className="small" style={{ padding: '2px 10px' }} onClick={() => dismiss(h.id)}>
+              知道了
+            </button>
+          </div>
+        </div>
+      ))}
+    </section>
   )
 }
 
