@@ -346,6 +346,24 @@ try {
     else ok('整餐一鍵複製')
     await ctx.close()
   }
+  // ---- 8.5 查食物頁 ----
+  console.log('8.5 查食物')
+  {
+    const { ctx, page } = await newPage({})
+    await page.goto(`${BASE}#foods`)
+    await page.waitForSelector('[data-testid="foods-list"]', { timeout: 3000 })
+    // 預設排序=纖維多→少，第一項應有高纖 badge
+    const first = await page.textContent('[data-testid="foods-list"]')
+    if (!first.includes('高纖')) fail('纖維排序首屏應出現高纖 badge')
+    // 搜尋豆漿
+    await page.fill('[data-testid="foods-search"]', '豆漿')
+    const hits = await page.textContent('[data-testid="foods-list"]')
+    if (!hits.includes('豆漿')) fail('查食物搜不到豆漿')
+    else ok('查食物：排序 + 搜尋')
+    await page.screenshot({ path: '/tmp/ldl-diet-foods.png', fullPage: false })
+    await ctx.close()
+  }
+
   // ---- 9. 目標精靈 + 體重記錄 ----
   console.log('9. 目標精靈 / 體重記錄')
   {

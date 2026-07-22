@@ -4,6 +4,7 @@ import TodayView from './components/TodayView'
 import CaptureFlow from './components/CaptureFlow'
 import HistoryView from './components/HistoryView'
 import DayView from './components/DayView'
+import FoodsView from './components/FoodsView'
 import SettingsView from './components/SettingsView'
 
 export default function App() {
@@ -20,6 +21,7 @@ export default function App() {
       {view.name === 'capture' && <CaptureFlow slot={view.slot} date={view.date} />}
       {view.name === 'history' && <HistoryView month={view.month} />}
       {view.name === 'day' && <DayView date={view.date} />}
+      {view.name === 'foods' && <FoodsView />}
       {view.name === 'settings' && <SettingsView />}
       <nav className="tabbar">
         <button className={tab === 'today' ? 'on' : ''} onClick={() => setView({ name: 'today' })}>
@@ -27,6 +29,9 @@ export default function App() {
         </button>
         <button className={tab === 'history' ? 'on' : ''} onClick={() => setView({ name: 'history' })}>
           <span className="ico">📅</span>紀錄
+        </button>
+        <button className={tab === 'foods' ? 'on' : ''} onClick={() => setView({ name: 'foods' })}>
+          <span className="ico">🔍</span>查食物
         </button>
         <button className={tab === 'settings' ? 'on' : ''} onClick={() => setView({ name: 'settings' })}>
           <span className="ico">⚙️</span>設定

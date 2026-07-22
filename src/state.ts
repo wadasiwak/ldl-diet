@@ -17,6 +17,7 @@ export type View =
   | { name: 'capture'; slot: MealSlot; date?: string }
   | { name: 'history'; month?: string } // '2026-07'
   | { name: 'day'; date: string } // '2026-07-22'
+  | { name: 'foods' }
   | { name: 'settings' }
 
 const SLOT_RE = /^(breakfast|lunch|dinner|snack)$/
@@ -45,6 +46,8 @@ export function hashToView(hash: string): View {
       if (!DATE_RE.test(date)) return { name: 'today' }
       return { name: 'day', date }
     }
+    case 'foods':
+      return { name: 'foods' }
     case 'settings':
       return { name: 'settings' }
     default:
@@ -62,6 +65,8 @@ export function viewToHash(view: View): string {
       return view.month ? `#history/${view.month}` : '#history'
     case 'day':
       return `#day/${view.date}`
+    case 'foods':
+      return '#foods'
     case 'settings':
       return '#settings'
   }
