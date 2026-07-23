@@ -152,6 +152,27 @@ if (portion.scaleRatio('一碗', '一碗') !== null) err(`同份量不應換算`
 if (portion.scaleRatio('適量', '100g') !== null) err(`解析不出不應換算`)
 console.log(`  ${CASES.length} 個解析案例`)
 
+console.log('== 外食料理庫 ==')
+const dishes = await bundleTs('src/content/dishes.ts')
+const DISHES = dishes.DISHES
+if (DISHES.length < 20) err(`料理只有 ${DISHES.length} 道（應 ≥20）`)
+const dishIds = new Set()
+for (const d of DISHES) {
+  const tag = `[${d.id}]`
+  if (dishIds.has(d.id)) err(`${tag} id 重複`)
+  dishIds.add(d.id)
+  for (const k of ['kcal', 'satFat', 'chol', 'fiber']) {
+    const [lo, hi] = d[k]
+    if (!(Number.isFinite(lo) && Number.isFinite(hi) && lo <= hi && lo >= 0)) err(`${tag} ${k} 範圍不合法 [${lo},${hi}]`)
+  }
+  if (!(d.kcal[0] >= 150 && d.kcal[1] <= 1500)) err(`${tag} kcal 範圍離譜 [${d.kcal}]`)
+  if (d.tip.length < 10 || d.tip.length > 60) err(`${tag} tip ${d.tip.length} 字（應 10–60）`)
+  const all = d.name + d.tip
+  for (const b of BANNED) if (all.includes(b)) err(`${tag} 出現禁詞「${b}」`)
+  if (SIMPLIFIED.test(all)) err(`${tag} 疑似簡體字`)
+}
+console.log(`  ${DISHES.length} 道料理`)
+
 console.log('== 目標精靈 TDEE ==')
 const tdee = await bundleTs('src/lib/tdee.ts')
 // Mifflin-St Jeor 已知值：男 40歲 170cm 75kg → BMR 10*75+6.25*170-5*40+5 = 1617.5

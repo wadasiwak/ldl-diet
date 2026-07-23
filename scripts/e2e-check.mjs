@@ -376,24 +376,32 @@ try {
     }
     await ctx.close()
   }
-  // ---- 7.5 現在還吃得下 ----
-  console.log('7.5 現在還吃得下')
+  // ---- 7.5 現在可以吃什麼（料理庫） ----
+  console.log('7.5 現在可以吃什麼')
   {
-    const { ctx, page } = await newPage({ records: seedRecords(OVER_SATFAT_ITEMS) })
+    // 中等的一餐：額度還很有空間，料理建議應該出現
+    const MODERATE = [
+      { id: 'm1', name: '雞胸沙拉', portion: '一份', nutrients: { kcal: 450, satFat: 4, chol: 90, fiber: 6 }, source: 'manual' },
+    ]
+    const { ctx, page } = await newPage({ records: seedRecords(MODERATE) })
     await page.goto(BASE)
     await page.waitForSelector('[data-testid="what-to-eat"]', { timeout: 5000 })
-    const chips = await page.$$('[data-testid="eat-chip"]')
-    if (chips.length < 3) fail(`吃得下建議應 ≥3 項，實得 ${chips.length}`)
+    const dishes = await page.$$('[data-testid="eat-dish"]')
+    if (dishes.length < 3) fail(`料理建議應 ≥3 道，實得 ${dishes.length}`)
     await page.click('[data-testid="eat-shuffle"]')
-    const chips2 = await page.$$('[data-testid="eat-chip"]')
-    if (chips2.length < 3) fail('換一批後建議消失')
-    // 點一個 → 直接帶進記錄頁的確認表
-    const name = (await chips2[0].textContent()).split(' ')[0]
-    await chips2[0].click()
+    // 點一道 → 展開細節（範圍+訣竅）→ 記一筆 → 確認表帶入
+    const dish = (await page.$$('[data-testid="eat-dish"]'))[0]
+    const label = await dish.textContent()
+    await dish.click()
+    await page.waitForSelector('[data-testid="eat-detail"]', { timeout: 3000 })
+    const detail = await page.textContent('[data-testid="eat-detail"]')
+    if (!detail.includes('💡')) fail('料理細節缺點法訣竅')
+    if (!/\d+–\d+ kcal/.test(detail)) fail('料理細節缺範圍值')
+    await page.click('[data-testid="eat-log"]')
     await page.waitForSelector('[data-testid="review"]', { timeout: 3000 })
     const rowName = await page.$eval('[data-testid="row-name"]', (el) => el.value)
-    if (rowName !== name) fail(`點建議後確認表帶入「${rowName}」≠「${name}」`)
-    else ok('吃得下建議 → 一鍵帶入記錄')
+    if (!label.includes(rowName)) fail(`記一筆帶入「${rowName}」與所選「${label}」不符`)
+    else ok('料理建議 → 範圍細節 → 一鍵帶入記錄')
     await ctx.close()
   }
 

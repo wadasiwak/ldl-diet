@@ -18,8 +18,7 @@ import { getApiKey } from '../lib/vision'
 import { getPhoto } from '../lib/photos'
 import { renderDayCard } from '../lib/shareCard'
 import SharePreview from './SharePreview'
-import { suggestFoods, type EatSuggestion } from '../lib/whatToEat'
-import { isDrink } from '../lib/foodSearch'
+import { DISHES, type Dish } from '../content/dishes'
 import { computeContext } from '../lib/advice'
 
 /** 連續記錄天數（今天還沒記就從昨天起算，不打斷 streak） */
@@ -169,17 +168,19 @@ function WeightRow({ date }: { date: string }) {
   )
 }
 
-/** 現在還吃得下什麼：用剩餘額度掃食藥署資料庫，給出一份塞得進今天額度的具體食物。 */
+const mid = (r: [number, number]) => Math.round((r[0] + r[1]) / 2)
+
+/** 現在可以吃什麼：台灣外食料理庫（估計範圍）依剩餘額度篩選，給「去吃什麼」的 idea。 */
 function WhatToEat({ consumed, targets }: { consumed: Nutrients; targets: DailyTarget }) {
   const setView = useApp((s) => s.setView)
   const setPendingItem = useApp((s) => s.setPendingItem)
-  const remaining: Nutrients = {
-    kcal: targets.kcal - consumed.kcal,
-    satFat: targets.satFat - consumed.satFat,
-    chol: targets.chol - consumed.chol,
-    fiber: targets.fiber - consumed.fiber,
+  const [openId, setOpenId] = useState<string | null>(null)
+  const [seed, setSeed] = useState(0)
+  const remaining = {
+    kcal: Math.max(0, targets.kcal - consumed.kcal),
+    satFat: Math.max(0, targets.satFat - consumed.satFat),
+    chol: Math.max(0, targets.chol - consumed.chol),
   }
-  const [list, setList] = useState<EatSuggestion[]>(() => suggestFoods(remaining))
   const ctx = computeContext(consumed, targets, new Date())
   const slot: MealSlot = ctx.nextMeal === 'done' ? 'snack' : ctx.nextMeal
 
@@ -190,16 +191,32 @@ function WhatToEat({ consumed, targets }: { consumed: Nutrients; targets: DailyT
       </section>
     )
   }
-  if (list.length === 0) return null
 
-  function pick(s: EatSuggestion) {
+  // easy=最油的點法也塞得下；light=點清淡的版本才塞得下
+  const scored = DISHES.map((d) => {
+    const easy = d.kcal[1] <= remaining.kcal && d.satFat[1] <= remaining.satFat && d.chol[1] <= remaining.chol
+    const light = d.kcal[0] <= remaining.kcal && d.satFat[0] <= remaining.satFat && d.chol[0] <= remaining.chol
+    return { d, easy, light }
+  }).filter((s) => s.light)
+  if (scored.length === 0) {
+    return (
+      <section className="panel small dim" data-testid="what-to-eat">
+        今天的飽脂或膽固醇額度用得差不多了——剩下的餐往蔬菜、水果、無糖飲品靠，明天重新開始 💪
+      </section>
+    )
+  }
+  // 換一批：以 seed 旋轉清單（deterministic、不用 Math.random 也能換）
+  const rotated = scored.map((_, i) => scored[(i + seed) % scored.length])
+  const list = [...rotated].sort((a, b) => Number(b.easy) - Number(a.easy)).slice(0, 6)
+
+  function logDish(d: Dish) {
     setPendingItem({
       id: crypto.randomUUID(),
-      name: s.food.n,
-      portion: `${s.grams}g`,
-      nutrients: s.n,
-      source: 'fda',
-      fdaId: s.food.i,
+      name: d.name,
+      portion: '一份(估)',
+      nutrients: { kcal: mid(d.kcal), satFat: mid(d.satFat), chol: mid(d.chol), fiber: mid(d.fiber) },
+      confidence: 'low',
+      source: 'manual',
     })
     setView({ name: 'capture', slot })
   }
@@ -208,22 +225,52 @@ function WhatToEat({ consumed, targets }: { consumed: Nutrients; targets: DailyT
     <section className="panel" data-testid="what-to-eat">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
         <h3 style={{ margin: 0 }}>
-          現在還吃得下 <span className="dim small">一份就塞得進今天額度</span>
+          現在可以吃什麼 <span className="dim small">依你剩的額度</span>
         </h3>
-        <button className="small" onClick={() => setList(suggestFoods(remaining, 8, true))} data-testid="eat-shuffle">
+        <button
+          className="small"
+          onClick={() => {
+            setSeed((s) => s + 3)
+            setOpenId(null)
+          }}
+          data-testid="eat-shuffle"
+        >
           🎲 換一批
         </button>
       </div>
       <div className="chips" style={{ marginTop: 8 }}>
-        {list.map((s) => (
-          <button key={s.food.i} className="chip" style={{ cursor: 'pointer' }} onClick={() => pick(s)} data-testid="eat-chip">
-            {s.food.n} {s.grams}g・{Math.round(s.n.kcal)}k{s.n.fiber >= 2 && !isDrink(s.food.n) ? ' 🌿' : ''}
+        {list.map(({ d, easy }) => (
+          <button
+            key={d.id}
+            className={`chip ${openId === d.id ? 'good' : ''}`}
+            style={{ cursor: 'pointer' }}
+            onClick={() => setOpenId(openId === d.id ? null : d.id)}
+            data-testid="eat-dish"
+          >
+            {d.emoji} {d.name} {d.kcal[0]}–{d.kcal[1]}k{easy ? '' : ' ⚠'}
           </button>
         ))}
       </div>
+      {list
+        .filter(({ d }) => d.id === openId)
+        .map(({ d, easy }) => (
+          <div key={d.id} style={{ background: 'var(--panel-2)', borderRadius: 10, padding: 10, marginTop: 8 }} data-testid="eat-detail">
+            <p className="small" style={{ margin: '0 0 6px' }}>
+              <strong>{d.emoji} {d.name}</strong>（一份估計）：{d.kcal[0]}–{d.kcal[1]} kcal・飽脂 {d.satFat[0]}–{d.satFat[1]}g・膽固醇 {d.chol[0]}–{d.chol[1]}mg・纖維 {d.fiber[0]}–{d.fiber[1]}g
+            </p>
+            <p className="small" style={{ margin: '0 0 8px', color: 'var(--accent)' }}>💡 {d.tip}</p>
+            {!easy && (
+              <p className="small" style={{ margin: '0 0 8px', color: 'var(--warn)' }}>
+                ⚠ 以你剩的額度，要照上面訣竅點清淡的版本才塞得下。
+              </p>
+            )}
+            <button className="small primary" onClick={() => logDish(d)} data-testid="eat-log">
+              就吃這個，記到{MEAL_SLOT_LABEL[slot]}（取中間值，可再改）
+            </button>
+          </div>
+        ))}
       <p className="dim" style={{ fontSize: '0.72rem', margin: '8px 0 0' }}>
-        依你剩餘的熱量／飽脂／膽固醇額度從食藥署資料庫挑的（纖維高優先）。點一下直接記到{MEAL_SLOT_LABEL[slot]}。
-        飲品（豆漿等）的纖維依品牌濾渣程度差很多，包裝品請以標示為準。
+        料理數值是常見範圍的估計（非官方檢驗），同一道菜依店家差很多——實際吃了什麼建議用拍照辨識校正。
       </p>
     </section>
   )
