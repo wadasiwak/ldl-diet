@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import data from '../content/fda-food.json'
-import { toNutrients, type FdaFood } from '../lib/foodSearch'
+import { isDrink, toNutrients, type FdaFood } from '../lib/foodSearch'
 
 const FOODS = data as FdaFood[]
 
@@ -17,7 +17,8 @@ const SORTS: Array<{ k: SortKey; label: string }> = [
 /** 台灣營養宣稱門檻（每100g）：高纖 ≥3g、低飽脂 ≤1.5g、低熱量 ≤40kcal */
 function badges(f: FdaFood): Array<{ t: string; good: boolean }> {
   const out: Array<{ t: string; good: boolean }> = []
-  if (f.fb !== null && f.fb >= 3) out.push({ t: '高纖', good: true })
+  // 飲品不掛高纖標：官方樣品的纖維依濾渣程度差異極大，避免誤導「喝飲料補纖維」
+  if (f.fb !== null && f.fb >= 3 && !isDrink(f.n)) out.push({ t: '高纖', good: true })
   if (f.sf !== null && f.sf <= 1.5) out.push({ t: '低飽脂', good: true })
   if (f.ch === 0) out.push({ t: '零膽固醇', good: true })
   if (f.k !== null && f.k <= 40) out.push({ t: '低熱量', good: true })
@@ -138,7 +139,7 @@ export default function FoodsView() {
         {list.length === 0 && <p className="dim small">找不到，換個關鍵字或分類試試。</p>}
       </section>
       <p className="dim" style={{ fontSize: '0.72rem', padding: '0 16px 12px' }}>
-        「—」表示官方未驗該項目。個人過敏、不耐或疾病飲食限制，請以醫師與營養師指示為準。
+        「—」表示官方未驗該項目。官方數值是特定樣品的實測，市售包裝品（尤其豆漿等飲品的纖維）依品牌配方差異大，請以產品營養標示為準。個人過敏、不耐或疾病飲食限制，請以醫師與營養師指示為準。
       </p>
     </main>
   )

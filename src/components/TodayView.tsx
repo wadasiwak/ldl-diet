@@ -19,6 +19,7 @@ import { getPhoto } from '../lib/photos'
 import { renderDayCard } from '../lib/shareCard'
 import SharePreview from './SharePreview'
 import { suggestFoods, type EatSuggestion } from '../lib/whatToEat'
+import { isDrink } from '../lib/foodSearch'
 import { computeContext } from '../lib/advice'
 
 /** 連續記錄天數（今天還沒記就從昨天起算，不打斷 streak） */
@@ -216,12 +217,13 @@ function WhatToEat({ consumed, targets }: { consumed: Nutrients; targets: DailyT
       <div className="chips" style={{ marginTop: 8 }}>
         {list.map((s) => (
           <button key={s.food.i} className="chip" style={{ cursor: 'pointer' }} onClick={() => pick(s)} data-testid="eat-chip">
-            {s.food.n} {s.grams}g・{Math.round(s.n.kcal)}k{s.n.fiber >= 2 ? ' 🌿' : ''}
+            {s.food.n} {s.grams}g・{Math.round(s.n.kcal)}k{s.n.fiber >= 2 && !isDrink(s.food.n) ? ' 🌿' : ''}
           </button>
         ))}
       </div>
       <p className="dim" style={{ fontSize: '0.72rem', margin: '8px 0 0' }}>
         依你剩餘的熱量／飽脂／膽固醇額度從食藥署資料庫挑的（纖維高優先）。點一下直接記到{MEAL_SLOT_LABEL[slot]}。
+        飲品（豆漿等）的纖維依品牌濾渣程度差很多，包裝品請以標示為準。
       </p>
     </section>
   )

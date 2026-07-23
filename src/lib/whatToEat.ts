@@ -2,7 +2,7 @@
 // 塞得進今天額度的食物。纖維高優先、飽脂低次之，同分類最多 2 項（多樣性 cap）。
 
 import data from '../content/fda-food.json'
-import { toNutrients, type FdaFood } from './foodSearch'
+import { isDrink, toNutrients, type FdaFood } from './foodSearch'
 import type { Nutrients } from '../content/types'
 
 const FOODS = data as FdaFood[]
@@ -44,7 +44,9 @@ function candidates(remaining: Nutrients): EatSuggestion[] {
     if (n.chol > remaining.chol) continue
     out.push({ food: f, grams: f.g, n })
   }
-  return out.sort((a, b) => b.n.fiber - a.n.fiber || a.n.satFat - b.n.satFat)
+  // 飲品的纖維不參與排序加權（官方樣品濾渣差異大，不當「高纖來源」推）
+  const rankFiber = (s: EatSuggestion) => (isDrink(s.food.n) ? 0 : s.n.fiber)
+  return out.sort((a, b) => rankFiber(b) - rankFiber(a) || a.n.satFat - b.n.satFat)
 }
 
 /** 取建議：前段候選中帶點隨機（「換一批」用），同分類最多 2 項。 */

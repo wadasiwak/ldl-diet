@@ -3,6 +3,12 @@
 import data from '../content/fda-food.json'
 
 /** 食藥署食物項（per-100g 四值）。i=樣品整合編號、n=品名、c=食品分類、g=常見一份克數。 */
+/** 飲品判定：豆漿/燕麥奶這類的纖維依品牌濾渣程度差異極大（官方樣品 0.1–2.1 都有），
+ * 不當「高纖」訊號主動推薦，數字照官方顯示但提醒以產品標示為準。 */
+export function isDrink(name: string): boolean {
+  return /漿|奶|乳|汁|飲|茶$/.test(name)
+}
+
 export interface FdaFood {
   i: string
   n: string
