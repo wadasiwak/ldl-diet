@@ -159,7 +159,7 @@ export default function CaptureFlow({ slot, date }: { slot: MealSlot; date?: str
       <section className="panel">
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button className="primary" onClick={() => fileRef.current?.click()} data-testid="photo-btn" disabled={!!busy}>
-            📷 拍照辨識
+            📷 拍照/相簿辨識
           </button>
           <button onClick={() => setEntry(entry === 'search' ? 'none' : 'search')} data-testid="search-btn">
             🔍 搜尋食物
@@ -174,11 +174,11 @@ export default function CaptureFlow({ slot, date }: { slot: MealSlot; date?: str
             📎 附照片
           </button>
         </div>
+        {/* 不加 capture：iOS 會跳「拍照 / 照片圖庫」選單，上傳舊照也能辨識 */}
         <input
           ref={fileRef}
           type="file"
           accept="image/*"
-          capture="environment"
           style={{ display: 'none' }}
           onChange={(e) => {
             const f = e.target.files?.[0]
@@ -213,13 +213,7 @@ export default function CaptureFlow({ slot, date }: { slot: MealSlot; date?: str
         )}
       </section>
 
-      {items.length === 0 && (
-        <>
-          <RecentMeals onAdd={(list) => setItems((prev) => [...prev, ...list])} />
-          <RecentFoods onAdd={(item) => setItems((prev) => [...prev, item])} />
-        </>
-      )}
-
+      {/* 展開的面板緊貼入口按鈕（在整餐複製/常吃的上面），不然開在螢幕外像沒反應 */}
       {entry === 'search' && (
         <FoodSearchPanel
           onAdd={(item) => setItems((prev) => [...prev, item])}
@@ -233,6 +227,13 @@ export default function CaptureFlow({ slot, date }: { slot: MealSlot; date?: str
             setEntry('none')
           }}
         />
+      )}
+
+      {items.length === 0 && entry === 'none' && (
+        <>
+          <RecentMeals onAdd={(list) => setItems((prev) => [...prev, ...list])} />
+          <RecentFoods onAdd={(item) => setItems((prev) => [...prev, item])} />
+        </>
       )}
 
       {items.length > 0 && (
