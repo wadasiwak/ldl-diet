@@ -49,6 +49,7 @@ export default function CaptureFlow({ slot, date }: { slot: MealSlot; date?: str
   const isSmallHours = !date && now.getHours() < 4
   const [useYesterday, setUseYesterday] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+  const attachRef = useRef<HTMLInputElement>(null)
 
   const targetDate =
     date ??
@@ -74,6 +75,20 @@ export default function CaptureFlow({ slot, date }: { slot: MealSlot; date?: str
         // 沒金鑰或斷網 → 直接帶去免費的 ChatGPT 辨識路線（照片已留著，入帳時照樣保存）
         if (result.kind === 'no-key' || result.kind === 'offline') setEntry('external')
       }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  /** 只附照片、不辨識——搜尋/手動/ChatGPT 外包路線也能配圖。 */
+  async function onAttachPhoto(file: File) {
+    setError(null)
+    setBusy('照片壓縮中…')
+    try {
+      const { blob } = await compressPhoto(file)
+      setPhotos((p) => [...p, { blob, url: URL.createObjectURL(blob) }])
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
@@ -155,6 +170,9 @@ export default function CaptureFlow({ slot, date }: { slot: MealSlot; date?: str
           <button onClick={() => setEntry(entry === 'external' ? 'none' : 'external')} data-testid="external-btn">
             🆓 ChatGPT 辨識
           </button>
+          <button onClick={() => attachRef.current?.click()} data-testid="attach-btn" disabled={!!busy} title="不辨識，只把照片存進這餐">
+            📎 附照片
+          </button>
         </div>
         <input
           ref={fileRef}
@@ -165,6 +183,18 @@ export default function CaptureFlow({ slot, date }: { slot: MealSlot; date?: str
           onChange={(e) => {
             const f = e.target.files?.[0]
             if (f) void onPickPhoto(f)
+            e.target.value = ''
+          }}
+        />
+        <input
+          ref={attachRef}
+          type="file"
+          accept="image/*"
+          style={{ display: 'none' }}
+          data-testid="attach-input"
+          onChange={(e) => {
+            const f = e.target.files?.[0]
+            if (f) void onAttachPhoto(f)
             e.target.value = ''
           }}
         />

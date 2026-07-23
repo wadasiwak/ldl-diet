@@ -1,5 +1,7 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useApp, todayStr } from '../state'
+import { compressPhoto } from '../lib/vision'
+import { savePhoto } from '../lib/photos'
 import {
   MEAL_SLOTS,
   MEAL_SLOT_LABEL,
@@ -61,10 +63,23 @@ function MealCard({ meal }: { meal: MealRecord }) {
   const deleteMeal = useApp((s) => s.deleteMeal)
   const [editing, setEditing] = useState(false)
   const [arm, setArm] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const attachRef = useRef<HTMLInputElement>(null)
   const sub = sumItems(meal.items)
 
   function onItemsChange(items: FoodItem[]) {
     updateMeal({ ...meal, items })
+  }
+
+  async function onAttachPhoto(file: File) {
+    setBusy(true)
+    try {
+      const { blob } = await compressPhoto(file)
+      const id = await savePhoto(blob)
+      updateMeal({ ...meal, photoIds: [...meal.photoIds, id] })
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
@@ -100,7 +115,23 @@ function MealCard({ meal }: { meal: MealRecord }) {
       )}
 
       {editing ? (
-        <ReviewTable items={meal.items} onChange={onItemsChange} />
+        <>
+          <ReviewTable items={meal.items} onChange={onItemsChange} />
+          <button className="small" style={{ marginTop: 6 }} onClick={() => attachRef.current?.click()} disabled={busy}>
+            {busy ? '照片處理中…' : '📎 附照片'}
+          </button>
+          <input
+            ref={attachRef}
+            type="file"
+            accept="image/*"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              const f = e.target.files?.[0]
+              if (f) void onAttachPhoto(f)
+              e.target.value = ''
+            }}
+          />
+        </>
       ) : (
         <>
           {meal.items.map((it) => (

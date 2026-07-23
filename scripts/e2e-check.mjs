@@ -164,6 +164,10 @@ try {
       await page.fill('[data-testid="grams-input"]', '250')
       await page.click('[data-testid="grams-confirm"]')
       await page.waitForSelector('[data-testid="review"]')
+      // 搜尋路線也能「只附照片不辨識」
+      await page.setInputFiles('[data-testid="attach-input"]', { name: 'm.png', mimeType: 'image/png', buffer: TINY_PNG })
+      await page.waitForSelector('img[alt="餐點照片"]', { timeout: 5000 })
+      ok('附照片（不辨識）')
       await page.click('[data-testid="save-meal"]')
       await page.waitForSelector('[data-testid="today"]', { timeout: 3000 })
       const lunch = await page.textContent('[data-testid="meal-lunch"]')
