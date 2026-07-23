@@ -37,7 +37,15 @@ export default function CaptureFlow({ slot, date }: { slot: MealSlot; date?: str
   const setView = useApp((s) => s.setView)
   const addMeal = useApp((s) => s.addMeal)
 
-  const [items, setItems] = useState<FoodItem[]>([])
+  const [items, setItems] = useState<FoodItem[]>(() => {
+    // 「現在還吃得下」點過來的食物直接帶入
+    const p = useApp.getState().pendingItem
+    if (p) {
+      useApp.getState().setPendingItem(null)
+      return [p]
+    }
+    return []
+  })
   const [photos, setPhotos] = useState<PendingPhoto[]>([])
   const [busy, setBusy] = useState<string | null>(null) // 進行中訊息
   const [error, setError] = useState<string | null>(null)

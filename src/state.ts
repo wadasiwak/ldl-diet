@@ -4,6 +4,7 @@ import {
   DEFAULT_TARGET,
   localDateStr,
   type DailyTarget,
+  type FoodItem,
   type LabResult,
   type MealRecord,
   type MealSlot,
@@ -77,6 +78,8 @@ export function viewToHash(view: View): string {
 interface AppState {
   // 不 persist
   view: View
+  /** 「現在還吃得下」點選的食物，帶進下一次開啟的記錄頁（一次性） */
+  pendingItem: FoodItem | null
 
   // persist
   /** key = 'YYYY-MM-DD' */
@@ -92,6 +95,7 @@ interface AppState {
   settings: Settings
 
   setView: (v: View) => void
+  setPendingItem: (it: FoodItem | null) => void
   addMeal: (rec: MealRecord) => void
   updateMeal: (rec: MealRecord) => void
   deleteMeal: (date: string, id: string) => void
@@ -120,6 +124,7 @@ export const useApp = create<AppState>()(
   persist(
     (set) => ({
       view: hashToView(location.hash),
+      pendingItem: null,
       records: {},
       weights: {},
       body: {},
@@ -136,6 +141,7 @@ export const useApp = create<AppState>()(
         const h = viewToHash(view)
         if (location.hash !== h) history.replaceState(null, '', h || location.pathname + location.search)
       },
+      setPendingItem: (pendingItem) => set({ pendingItem }),
       addMeal: (rec) =>
         set((s) => ({
           records: { ...s.records, [rec.date]: [...(s.records[rec.date] ?? []), rec] },

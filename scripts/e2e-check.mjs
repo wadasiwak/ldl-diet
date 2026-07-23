@@ -376,6 +376,27 @@ try {
     }
     await ctx.close()
   }
+  // ---- 7.5 現在還吃得下 ----
+  console.log('7.5 現在還吃得下')
+  {
+    const { ctx, page } = await newPage({ records: seedRecords(OVER_SATFAT_ITEMS) })
+    await page.goto(BASE)
+    await page.waitForSelector('[data-testid="what-to-eat"]', { timeout: 5000 })
+    const chips = await page.$$('[data-testid="eat-chip"]')
+    if (chips.length < 3) fail(`吃得下建議應 ≥3 項，實得 ${chips.length}`)
+    await page.click('[data-testid="eat-shuffle"]')
+    const chips2 = await page.$$('[data-testid="eat-chip"]')
+    if (chips2.length < 3) fail('換一批後建議消失')
+    // 點一個 → 直接帶進記錄頁的確認表
+    const name = (await chips2[0].textContent()).split(' ')[0]
+    await chips2[0].click()
+    await page.waitForSelector('[data-testid="review"]', { timeout: 3000 })
+    const rowName = await page.$eval('[data-testid="row-name"]', (el) => el.value)
+    if (rowName !== name) fail(`點建議後確認表帶入「${rowName}」≠「${name}」`)
+    else ok('吃得下建議 → 一鍵帶入記錄')
+    await ctx.close()
+  }
+
   // ---- 8.5 查食物頁 ----
   console.log('8.5 查食物')
   {

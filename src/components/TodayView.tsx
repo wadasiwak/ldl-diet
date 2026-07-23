@@ -7,8 +7,10 @@ import {
   localDateStr,
   sumItems,
   sumMeals,
+  type DailyTarget,
   type MealRecord,
   type MealSlot,
+  type Nutrients,
 } from '../content/types'
 import RingGauges from './RingGauges'
 import AdviceCard from './AdviceCard'
@@ -16,6 +18,8 @@ import { getApiKey } from '../lib/vision'
 import { getPhoto } from '../lib/photos'
 import { renderDayCard } from '../lib/shareCard'
 import SharePreview from './SharePreview'
+import { suggestFoods, type EatSuggestion } from '../lib/whatToEat'
+import { computeContext } from '../lib/advice'
 
 /** 連續記錄天數（今天還沒記就從昨天起算，不打斷 streak） */
 function streakDays(records: Record<string, MealRecord[]>): number {
@@ -55,6 +59,8 @@ export default function TodayView() {
       <SetupHints />
 
       <AdviceCard consumed={consumed} targets={targets} meals={meals} />
+
+      <WhatToEat consumed={consumed} targets={targets} />
 
       {MEAL_SLOTS.map((slot) => (
         <MealSection key={slot} slot={slot} date={date} />
@@ -157,6 +163,65 @@ function WeightRow({ date }: { date: string }) {
       </div>
       <p className="dim" style={{ fontSize: '0.72rem', margin: '6px 0 0' }}>
         都選填。腰圍是代謝症候群指標之一（一般參考：男 &lt;90cm、女 &lt;80cm）。
+      </p>
+    </section>
+  )
+}
+
+/** 現在還吃得下什麼：用剩餘額度掃食藥署資料庫，給出一份塞得進今天額度的具體食物。 */
+function WhatToEat({ consumed, targets }: { consumed: Nutrients; targets: DailyTarget }) {
+  const setView = useApp((s) => s.setView)
+  const setPendingItem = useApp((s) => s.setPendingItem)
+  const remaining: Nutrients = {
+    kcal: targets.kcal - consumed.kcal,
+    satFat: targets.satFat - consumed.satFat,
+    chol: targets.chol - consumed.chol,
+    fiber: targets.fiber - consumed.fiber,
+  }
+  const [list, setList] = useState<EatSuggestion[]>(() => suggestFoods(remaining))
+  const ctx = computeContext(consumed, targets, new Date())
+  const slot: MealSlot = ctx.nextMeal === 'done' ? 'snack' : ctx.nextMeal
+
+  if (remaining.kcal < 30) {
+    return (
+      <section className="panel small dim" data-testid="what-to-eat">
+        今天的熱量額度差不多滿了——喝水、無糖茶，早點休息吧 🌙
+      </section>
+    )
+  }
+  if (list.length === 0) return null
+
+  function pick(s: EatSuggestion) {
+    setPendingItem({
+      id: crypto.randomUUID(),
+      name: s.food.n,
+      portion: `${s.grams}g`,
+      nutrients: s.n,
+      source: 'fda',
+      fdaId: s.food.i,
+    })
+    setView({ name: 'capture', slot })
+  }
+
+  return (
+    <section className="panel" data-testid="what-to-eat">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+        <h3 style={{ margin: 0 }}>
+          現在還吃得下 <span className="dim small">一份就塞得進今天額度</span>
+        </h3>
+        <button className="small" onClick={() => setList(suggestFoods(remaining, 8, true))} data-testid="eat-shuffle">
+          🎲 換一批
+        </button>
+      </div>
+      <div className="chips" style={{ marginTop: 8 }}>
+        {list.map((s) => (
+          <button key={s.food.i} className="chip" style={{ cursor: 'pointer' }} onClick={() => pick(s)} data-testid="eat-chip">
+            {s.food.n} {s.grams}g・{Math.round(s.n.kcal)}k{s.n.fiber >= 2 ? ' 🌿' : ''}
+          </button>
+        ))}
+      </div>
+      <p className="dim" style={{ fontSize: '0.72rem', margin: '8px 0 0' }}>
+        依你剩餘的熱量／飽脂／膽固醇額度從食藥署資料庫挑的（纖維高優先）。點一下直接記到{MEAL_SLOT_LABEL[slot]}。
       </p>
     </section>
   )
