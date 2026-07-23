@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ITEM_CLAMP, NUTRIENT_META, sumItems, type FoodItem, type NutrientKey } from '../content/types'
 import { scaleNutrients, scaleRatio } from '../lib/portion'
+import NumberField from './NumberField'
 
 const KEYS: NutrientKey[] = ['kcal', 'satFat', 'chol', 'fiber']
 
@@ -84,15 +85,13 @@ export default function ReviewTable({
             {KEYS.map((k) => (
               <label key={k} className="small dim" style={{ flex: 1, minWidth: 0 }}>
                 {NUTRIENT_META[k].label.slice(0, 2)}
-                <input
-                  type="number"
-                  inputMode="decimal"
+                <NumberField
                   value={it.nutrients[k]}
-                  onChange={(e) =>
+                  onValue={(n) =>
                     patch(it.id, (x) => ({
                       ...x,
                       // 手動輸入也吃單項合理上界（vision 路線本來就有 clamp）
-                      nutrients: { ...x.nutrients, [k]: Math.min(Math.max(Number(e.target.value) || 0, 0), ITEM_CLAMP[k]) },
+                      nutrients: { ...x.nutrients, [k]: Math.min(Math.max(n, 0), ITEM_CLAMP[k]) },
                     }))
                   }
                   style={{ padding: '4px 6px' }}

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useApp, todayStr } from '../state'
 import { DEFAULT_TARGET, suggestedSatFat } from '../content/types'
 import { ACTIVITY_LEVELS, GOALS, suggestKcalTarget, type Sex } from '../lib/tdee'
+import NumberField from './NumberField'
 import { getApiKey, setApiKey, testApiKey } from '../lib/vision'
 import { exportFull, exportLight, importBackup } from '../lib/backup'
 import { clearAllPhotos, photoUsage } from '../lib/photos'
@@ -107,12 +108,7 @@ function TargetsPanel() {
       <GoalWizard onApply={(kcal) => setTargets({ ...targets, kcal, satFat: suggestedSatFat(kcal) })} />
       <label className="small dim">
         熱量上限（kcal）
-        <input
-          type="number"
-          inputMode="numeric"
-          value={targets.kcal}
-          onChange={(e) => upd('kcal', Number(e.target.value) || 0)}
-        />
+        <NumberField value={targets.kcal} onValue={(n) => upd('kcal', n)} />
       </label>
       <p className="dim" style={{ fontSize: '0.75rem', margin: '4px 0 8px' }}>
         依這個熱量，飽和脂肪建議上限是 {suggestedSatFat(targets.kcal)} g（&lt;總熱量 10%）
@@ -125,16 +121,16 @@ function TargetsPanel() {
       <div style={{ display: 'flex', gap: 8 }}>
         <label className="small dim" style={{ flex: 1 }}>
           飽和脂肪上限（g）
-          <input type="number" inputMode="decimal" value={targets.satFat} onChange={(e) => upd('satFat', Number(e.target.value) || 0)} />
+          <NumberField value={targets.satFat} onValue={(n) => upd('satFat', n)} />
         </label>
         <label className="small dim" style={{ flex: 1 }}>
           膳食纖維下限（g）
-          <input type="number" inputMode="decimal" value={targets.fiber} onChange={(e) => upd('fiber', Number(e.target.value) || 0)} />
+          <NumberField value={targets.fiber} onValue={(n) => upd('fiber', n)} />
         </label>
       </div>
       <label className="small dim" style={{ display: 'block', marginTop: 8 }}>
         膽固醇上限（mg）
-        <input type="number" inputMode="numeric" value={targets.chol} onChange={(e) => upd('chol', Number(e.target.value) || 0)} />
+        <NumberField value={targets.chol} onValue={(n) => upd('chol', n)} />
       </label>
       <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
         <button className="small" onClick={() => upd('chol', 300)} disabled={targets.chol === 300}>
