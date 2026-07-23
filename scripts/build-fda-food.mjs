@@ -12,6 +12,12 @@
 //   熱量(kcal) / 飽和脂肪(g) / 膽固醇(mg) / 膳食纖維(g)
 // 同樣品同分析項若有多列取平均。植物性分類缺膽固醇補 0（合法零），其餘缺值 null。
 // 欄名／單位驗證 fail-fast：預期欄位或分析項不存在、單位不符，一律 throw。
+//
+// 收錄策略：全量收錄（官方全部樣品），僅做：
+//   1. 品名清理（去「平均值」與年份/月份批次注記）＋台灣慣用名改名（RENAMES）
+//   2. 同名去重（優先留「平均值」樣品）
+//   3. 剔除熟成/存放實驗批次（香蕉(0天,綠皮)、酪梨(室溫存放0天)…，EXCLUDE_RE）
+// scripts/common-foods.txt 為舊版關鍵字精選名單，已不再作為過濾器（保留備查）。
 
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -21,7 +27,6 @@ import { portionFor } from './portion-extras.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const RAW_DIR = join(__dirname, 'raw')
-const KEYWORDS_FILE = join(__dirname, 'common-foods.txt')
 const OUT_FILE = join(__dirname, '..', 'src', 'content', 'fda-food.json')
 
 // ---------- 常數 ----------
@@ -37,7 +42,7 @@ const TARGETS = new Map([
   ['一般成分|膳食纖維', { key: 'fb', unit: 'g' }],
 ])
 
-/** 食品分類白名單（粗篩）。排除罕見或非食物向分類無 —— 全 18 類中僅排除純香辛料以外者由關鍵字細選。 */
+/** 食品分類全集（全 18 類全收）。出現未知分類即 throw（fail-fast，資料格式變更警報）。 */
 const CATEGORY_WHITELIST = new Set([
   '穀物類', '澱粉類', '肉類', '魚貝類', '蛋類', '乳品類', '豆類', '蔬菜類', '水果類',
   '菇類', '藻類', '油脂類', '飲料類', '堅果及種子類', '糕餅點心類', '糖類',
@@ -50,24 +55,22 @@ const PLANT_CATS = new Set(['穀物類', '澱粉類', '蔬菜類', '水果類', 
 /** 油脂類中的動物性/可能含動物油關鍵字（缺膽固醇不補 0） */
 const ANIMAL_FAT_RE = /奶油|牛油|豬油|雞油|烤酥油/
 
-/** 命中即剔除（處理泛用關鍵字的誤傷：非食物本體的粉/醬/罐頭原料等） */
-const EXCLUDES = [
-  '麵包果', '麵包粉', '麵包醬', '果醬', '魚鰓', '精囊', '睪丸', '雞精', '味精', '高湯塊', '奶精', '魚翅', '鯊魚',
-  '牛排醬', '羊肉爐醬', '冰淇淋粉', '布丁粉', '熱狗粉', '炸雞粉', '蒸肉粉', '炸排粉', '咖啡豆',
-  '玉米粉', '秈米粉', '糙米粉', '白糯米粉', '米漿粉', '芋頭粉',
-]
-
 /** 命中即剔除（regex 版）：熟成/存放實驗批次樣品（香蕉(0天,綠皮)、酪梨(室溫存放0天)…） */
 const EXCLUDE_RE = /\d天|存放/
 
-/** 四值合理範圍（per-100g），超出即 throw */
-const RANGES = { k: [0, 900], sf: [0, 100], ch: [0, 1400], fb: [0, 60] }
+/** 四值合理範圍（per-100g），超出即 throw。
+ *  上限依全量資料實測極值設定：熱量最高＝油脂類 899、飽和脂肪最高＝中鏈脂肪酸油 99.8、
+ *  膽固醇最高＝豬腦 2075（膽固醇管理 app 的核心查詢對象，必收）、纖維最高＝白茯苓 80.9。 */
+const RANGES = { k: [0, 950], sf: [0, 100], ch: [0, 2200], fb: [0, 90] }
 
 /** 品名改名規則（依序套用）。exact=true 時整名相等才換；否則 substring/regex 全域替換。
  *  目的：官方學名/部位名 → 台灣慣用名，讓前端 name-includes 搜尋搜得到。 */
 const RENAMES = [
+  ['臺灣', '台灣'], // 用字統一（臺灣馬加鰆…），置頂先跑
   // 魚貝：學名 → 慣用名
   ['長體油胡瓜魚', '柳葉魚(長體油胡瓜魚)'],
+  ['毛鱗魚', '柳葉魚(毛鱗魚)', { exact: true }], // 「毛鱗魚(柳葉魚)(裹粉未炸)」原名已含慣用名，不動
+  ['莫三比克口孵非鯽', '吳郭魚(莫三比克口孵非鯽)'],
   ['尼羅口孵非鯽', '吳郭魚(尼羅口孵非鯽)'],
   ['康氏馬加鰆', '土魠魚(康氏馬加鰆)'],
   ['銀鯧', '白鯧(銀鯧)'],
@@ -77,6 +80,50 @@ const RENAMES = [
   ['台灣鎖管', '小卷(鎖管)'],
   ['犬牙南極魚', '圓鱈(犬牙南極魚)'],
   ['大口鰜', '比目魚(大口鰜)'],
+  ['真鯛', '嘉鱲魚(真鯛)'],
+  ['日本花鱸', '鱸魚(七星鱸)'], // 官方別名欄即列「鱸魚」；台灣市售鱸魚以七星鱸為大宗
+  ['尖嘴鱸', '金目鱸(尖嘴鱸)'],
+  ['文蛤', '蛤蜊(文蛤)', { exact: true }], // 大文蛤/環文蛤/文蛤丸不動，仍可用「文蛤」搜到
+  ['尖鎖管', '透抽(尖鎖管)'],
+  ['單角革單棘魨', '剝皮魚(單角革單棘魨)'],
+  ['麥奇鈎吻鮭', '虹鱒(麥奇鈎吻鮭)'],
+  ['布氏鯧鰺', '金鯧(布氏鯧鰺)'],
+  ['杜氏鰤', '紅甘(杜氏鰤)'],
+  ['鬍鯰', '土虱(鬍鯰)'],
+  ['多鱗四指馬鮁', '午仔魚(四指馬鮁)'],
+  ['多鱗沙鮻', '沙梭(多鱗沙鮻)'],
+  ['藍圓鰺', '四破魚(藍圓鰺)'],
+  [/^日本銀帶鯡(?=\(|$)/, '丁香魚(日本銀帶鯡)'], // 不動「日本銀帶鯡魚干(丁香魚脯)」
+  ['日本紅目大眼鯛', '紅目鰱(日本紅目大眼鯛)'],
+  ['血斑異大眼鯛', '紅目鰱(血斑異大眼鯛)'],
+  ['鞍帶石斑魚', '龍膽石斑(鞍帶石斑魚)'],
+  ['黑䱛', '黑喉(黑䱛)'],
+  ['雙線鬚鰨', '龍舌魚(雙線鬚鰨)'],
+  ['翻車魨腹肉', '曼波魚腹肉(翻車魨)', { exact: true }],
+  ['翻車魨魚皮', '曼波魚皮(翻車魨)', { exact: true }],
+  ['低眼無齒芒魚片(芒加魚邊)', '巴沙魚片(低眼無齒芒魚)', { exact: true }],
+  ['鯔魚卵', '烏魚子(鯔魚卵)'],
+  ['鯔魚精囊', '烏魚膘(鯔魚精囊)'],
+  ['鯔切片', '烏魚切片(鯔)', { exact: true }],
+  [/^鯔(?=\(|$)/, '烏魚(鯔)'], // 鯔、鯔(11月,雄魚)…
+  ['鮸', '鮸魚', { exact: true }],
+  ['鯉', '鯉魚', { exact: true }],
+  ['鱅', '大頭鰱(鱅)', { exact: true }],
+  ['白對蝦', '白蝦(白對蝦)'],
+  ['草對蝦', '草蝦(草對蝦)'],
+  ['日本對蝦', '明蝦(日本對蝦)'],
+  ['羅氏沼蝦', '泰國蝦(羅氏沼蝦)'],
+  ['北方長額蝦', '甜蝦(北方長額蝦)'],
+  ['螳螂蝦', '蝦蛄(螳螂蝦)'],
+  ['菲律賓簾蛤', '海瓜子(菲律賓簾蛤)'],
+  ['綠殼菜蛤干', '淡菜干(綠殼菜蛤)', { exact: true }],
+  ['綠殼菜蛤', '淡菜(綠殼菜蛤)', { exact: true }],
+  ['蝦夷海扇蛤', '扇貝(蝦夷海扇蛤)'],
+  ['軟翅仔', '軟絲(軟翅仔)'],
+  ['仿刺參', '海參(仿刺參)'],
+  ['南美刺參', '海參(南美刺參)'],
+  ['黑烏參', '海參(黑烏參)'],
+  ['日本鰻鱺魚片', '鰻魚片(日本鰻鱺)'],
   // 蔬果：植物學名/舊名 → 慣用名
   ['花胡瓜', '小黃瓜'],
   [/^胡瓜/, '大黃瓜(胡瓜)'],
@@ -86,23 +133,43 @@ const RENAMES = [
   ['結球白菜', '大白菜'],
   ['蕹菜', '空心菜'],
   ['韮', '韭'],
+  ['根菾菜根', '甜菜根(根菾菜根)', { exact: true }],
+  ['過溝菜蕨', '過貓(過溝菜蕨)'],
+  ['雪裡蕻', '雪裡紅(雪裡蕻)'],
+  ['芫荽', '香菜(芫荽)', { exact: true }], // 香芫荽（巴西里）不動
+  ['落葵', '皇宮菜(落葵)'],
+  ['蕺菜', '魚腥草(蕺菜)'],
+  ['豆瓣菜', '西洋菜(豆瓣菜)'],
+  ['香樁', '香椿'], // 官方資料錯字
+  ['淮山', '山藥(淮山)', { exact: true }],
+  ['薤', '蕗蕎(薤)', { exact: true }],
+  ['虎皮蛙', '田雞(虎皮蛙)'],
+  ['天婦羅', '甜不辣(天婦羅)'],
   ['土司', '吐司'],
   ['蕃茄', '番茄'],
   ['黃肉甘藷', '地瓜', { exact: true }], // 台灣最常見黃肉地瓜當代表項（須先於甘藷→地瓜通則）
   ['蕃薯', '地瓜'],
   ['甘藷', '地瓜'],
   ['甘薯', '地瓜'],
+  ['隼人瓜苗', '龍鬚菜(佛手瓜苗)', { exact: true }], // 須先於隼人瓜通則
   ['隼人瓜', '佛手瓜'],
   ['紅龍果', '火龍果(紅龍果)'],
   ['北蕉', '香蕉(北蕉)'],
+  ['番石榴', '芭樂(番石榴)'],
+  ['安石榴', '紅石榴(安石榴)'],
+  ['嘉寶果', '樹葡萄(嘉寶果)'],
+  ['長果金柑', '金棗(長果金柑)'],
   ['萊豆仁', '皇帝豆(萊豆仁)'],
   ['敏豆莢', '四季豆(敏豆莢)'],
   ['甘扁桃仁', '杏仁果'],
   ['奇亞子', '奇亞籽'],
   ['糙秈米', '糙米(秈)', { exact: true }],
   ['糙稉米', '糙米(稉)'],
-  ['稉米', '白米(蓬萊米)', { exact: true }],
+  [/^稉米(?=\(|$)/, '白米(蓬萊米)'], // 稉米、稉米(台稉9號)…；不動稉型糯米/發芽稉米
+  [/^秈米(?=\(|$)/, '在來米(秈米)'], // 秈米、秈米(台中秈10號)…；不動秈米粉
   ['甜玉米', '玉米(甜玉米)'],
+  ['高梁', '高粱'], // 官方資料錯字：高梁/糯高梁/高梁醋
+  ['台灣藜', '紅藜(台灣藜)'],
   // 肉：部位名 → 慣用名
   ['腓力', '菲力'],
   ['清肉', '雞胸肉'],
@@ -164,9 +231,12 @@ function parseCsv(text) {
 
 function cleanName(raw) {
   let n = raw.replaceAll('（', '(').replaceAll('）', ')').trim()
-  n = n.replace(/\((?:19|20)\d{2}年?(?:取樣)?\)/g, '') // 批次年份注記：(2021年取樣)(2020取樣)(2021年)
+  // 批次年份注記：(2021年取樣)(2020取樣)(2021年)(1995年之前取樣)，含官方漏左括號的「…2022年取樣)」
+  n = n.replace(/,(?:19|20)\d{2}年?(?:之前)?(?:取樣)?\)/g, ')') // 括注尾巴型：(有機,2023年取樣) → (有機)
+  n = n.replace(/\(?(?:19|20)\d{2}年?(?:之前)?(?:取樣)?\)/g, '')
   n = n.replace(/\(\d{1,2}月取樣\)/g, '') // 批次月份注記
   n = n.replace(/\(\d{1,2}月\)/g, '')
+  n = n.replace(/\($/, '') // 官方雙左括號殘尾：日本花鱸((11月) → 去月份注記後剩「日本花鱸(」；須在改名前剝掉
   n = n.replaceAll('平均值', '')
   for (const [pat, to, opts = {}] of RENAMES) {
     if (typeof pat === 'function') {
@@ -181,6 +251,7 @@ function cleanName(raw) {
   }
   n = n.replace(/\)\(/g, ',') // 相鄰括注合併：雞腿(骨腿)(土雞) → 雞腿(骨腿,土雞)
   n = n.replace(/\(\)/g, '').replace(/\s+/g, '').trim()
+  n = n.replace(/\($/, '') // 官方雙左括號殘尾：日本花鱸((11月) → 去月份注記後剩「日本花鱸(」
   return n
 }
 
@@ -249,22 +320,18 @@ function main() {
   }
   console.log(`原始樣品數：${samples.size}`)
 
-  // 5. 讀關鍵字白名單
-  const keywords = readFileSync(KEYWORDS_FILE, 'utf-8')
-    .split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('#'))
-  console.log(`關鍵字數：${keywords.length}`)
-
-  // 6. 篩選 + 清理品名 + 補值
+  // 5. 全量清理品名 + 補值（不再做關鍵字篩選）
   const avg = (a) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : null)
   const round = (v, d) => (v === null ? null : Math.round(v * 10 ** d) / 10 ** d)
   const candidates = []
+  let batchExcluded = 0
   for (const [id, s] of samples) {
-    if (!CATEGORY_WHITELIST.has(s.cat)) continue
+    if (!CATEGORY_WHITELIST.has(s.cat)) {
+      throw new Error(`未知食品分類「${s.cat}」（樣品「${s.rawName}」），資料格式可能已變`)
+    }
     const name = cleanName(s.rawName)
     if (!name) continue
-    if (EXCLUDES.some((x) => name.includes(x)) || EXCLUDE_RE.test(name)) continue
-    const matched = keywords.filter((kw) => name.includes(kw))
-    if (matched.length === 0) continue
+    if (EXCLUDE_RE.test(name)) { batchExcluded++; continue } // 熟成/存放實驗批次
 
     let ch = avg(s.vals.ch)
     if (ch === null) {
@@ -281,11 +348,10 @@ function main() {
       fb: round(avg(s.vals.fb), 1),
       _raw: s.rawName,
       _avg: s.rawName.includes('平均值'),
-      _kws: matched,
     })
   }
 
-  // 7a. 同名去重：優先留「平均值」樣品，其次缺值少者，再其次整合編號小者
+  // 6. 同名去重：優先留「平均值」樣品，其次缺值少者，再其次整合編號小者
   const nullCount = (x) => ['k', 'sf', 'ch', 'fb'].filter((f) => x[f] === null).length
   const byName = new Map()
   for (const c of candidates) {
@@ -297,39 +363,8 @@ function main() {
       c.i < prev.i
     if (better) byName.set(c.n, c)
   }
-  const deduped = [...byName.values()]
-
-  // 7b. 品種收斂：同一關鍵字常對到十幾個品種（白米(台稉9號)…），每個關鍵字只留前 K 個最佳樣品，
-  //     排序偏好：名稱=關鍵字 > 去括注後=關鍵字 > 關鍵字在括注外 > 平均值樣品 > 去括注後名稱短 > 整合編號小。
-  //     （括注是「生/熟/部位」等有意義注記，不計入長度，避免「鯖魚(生)」輸給「茄汁鯖魚罐頭」；
-  //      不用缺值數當排序鍵——動物性食品缺纖維屬常態，會反把「全脂優格」擠掉）
-  //     一項只要進入任一關鍵字的前 K 名即保留。
-  const PER_KEYWORD_CAP = Number(process.env.FDA_KW_CAP || 2)
-  const base = (n) => n.replace(/\([^)]*\)/g, '')
-  const byKw = new Map()
-  for (const c of deduped) for (const kw of c._kws) {
-    if (!byKw.has(kw)) byKw.set(kw, [])
-    byKw.get(kw).push(c)
-  }
-  const keep = new Set()
-  for (const [kw, list] of byKw) {
-    list.sort((a, b) =>
-      (b.n === kw) - (a.n === kw) ||
-      (base(b.n) === kw) - (base(a.n) === kw) ||
-      (base(b.n).includes(kw)) - (base(a.n).includes(kw)) || // 關鍵字只出現在括注內者（泡芙(巧克力)）後移
-      b._avg - a._avg ||
-      base(a.n).length - base(b.n).length ||
-      (a.i < b.i ? -1 : 1))
-    for (const c of list.slice(0, PER_KEYWORD_CAP)) keep.add(c)
-  }
-  const items = [...keep].sort((a, b) => (a.c === b.c ? a.n.localeCompare(b.n, 'zh-Hant') : a.c.localeCompare(b.c, 'zh-Hant')))
-  console.log(`關鍵字命中：${candidates.length} → 同名去重：${deduped.length} → 每關鍵字取前 ${PER_KEYWORD_CAP}：${items.length}`)
-
-  // debug：FDA_DEBUG=路徑 → 傾印「關鍵字→選中項」對照，方便重新 curate
-  if (process.env.FDA_DEBUG) {
-    const dbg = [...byKw].map(([kw, list]) => `${kw}\t${list.slice(0, PER_KEYWORD_CAP).filter((c) => keep.has(c)).map((c) => c.n).join(' | ')}`)
-    writeFileSync(process.env.FDA_DEBUG, dbg.join('\n') + '\n')
-  }
+  const items = [...byName.values()].sort((a, b) => (a.c === b.c ? a.n.localeCompare(b.n, 'zh-Hant') : a.c.localeCompare(b.c, 'zh-Hant')))
+  console.log(`全量：${candidates.length}（另剔除實驗批次 ${batchExcluded}）→ 同名去重：${items.length}`)
 
   // 8. 驗證：值域（極少數真實極端值如滷蛋黃膽固醇 >1400，剔除並警告；超過 5 項代表資料異常 → throw）、
   //    項數、id 唯一、品名非空繁中
@@ -346,8 +381,8 @@ function main() {
   for (const o of outliers) {
     console.warn(`⚠️ 剔除超出值域項：「${o.n}」 k=${o.k} sf=${o.sf} ch=${o.ch} fb=${o.fb}`)
   }
-  if (kept.length < 400 || kept.length > 600) {
-    throw new Error(`輸出 ${kept.length} 項，不在 400–600 之間；請調整 scripts/common-foods.txt 關鍵字。`)
+  if (kept.length < 1700 || kept.length > 2300) {
+    throw new Error(`輸出 ${kept.length} 項，不在 1700–2300 之間；全量收錄下應接近原始樣品數（去重後），請檢查資料或清理規則。`)
   }
   const ids = new Set(kept.map((x) => x.i))
   if (ids.size !== kept.length) throw new Error('整合編號重複')

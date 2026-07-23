@@ -104,15 +104,17 @@ if (!(t.fiber >= 20 && t.fiber <= 40)) err(`預設纖維 ${t.fiber} 超出 [20,4
 
 console.log('== fda-food.json ==')
 const foods = JSON.parse(readFileSync(join(root, 'src/content/fda-food.json'), 'utf8'))
-if (foods.length < 300) err(`只有 ${foods.length} 項（應 ≥300）`)
-if (foods.length > 700) warn(`${foods.length} 項偏多（目標 400–600）`)
+// 全量收錄官方樣品（2026-07-24 起）：去重後約 1,700–2,100 項
+if (foods.length < 1500) err(`只有 ${foods.length} 項（全量收錄應 ≥1500）`)
+if (foods.length > 2300) err(`${foods.length} 項超過官方樣品總數，管線有問題`)
 const ids = new Set()
 let nulls = 0
 for (const f of foods) {
   if (ids.has(f.i)) err(`id 重複：${f.i}`)
   ids.add(f.i)
   if (!f.n || !f.n.trim()) err(`空品名 id=${f.i}`)
-  for (const [k, max] of [['k', 900], ['sf', 100], ['ch', 1400], ['fb', 60]]) {
+  // 值域=全量官方實測極值（豬腦 ch2075、白茯苓 fb80.9 都是真值），與 build 腳本 RANGES 同步
+  for (const [k, max] of [['k', 950], ['sf', 100], ['ch', 2200], ['fb', 90]]) {
     const v = f[k]
     if (v === null) {
       nulls++
