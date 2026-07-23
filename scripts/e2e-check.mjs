@@ -348,17 +348,22 @@ try {
     const comboRows = await page.$$('[data-testid="review-row"]')
     if (comboRows.length !== 2) fail(`整餐複製應帶入 2 列，實得 ${comboRows.length}`)
     else ok('整餐一鍵複製')
-    // 分享圖卡：今日與本月（headless 無 navigator.share → 走下載）
+    // 分享圖卡：先預覽再分享（headless 無 navigator.share → 確認後走下載）
     await page.goto(BASE)
+    await page.click('[data-testid="share-day"]')
+    await page.waitForSelector('[data-testid="share-preview"] img', { timeout: 15000 })
+    ok('分享前先預覽')
     const [dayCard] = await Promise.all([
       page.waitForEvent('download', { timeout: 15000 }),
-      page.click('[data-testid="share-day"]'),
+      page.click('[data-testid="share-confirm"]'),
     ])
     if (!dayCard.suggestedFilename().startsWith('ldl-diet-')) fail(`日卡檔名異常：${dayCard.suggestedFilename()}`)
     await page.goto(`${BASE}#history`)
+    await page.click('[data-testid="share-month"]')
+    await page.waitForSelector('[data-testid="share-preview"] img', { timeout: 15000 })
     const [monthCard] = await Promise.all([
       page.waitForEvent('download', { timeout: 15000 }),
-      page.click('[data-testid="share-month"]'),
+      page.click('[data-testid="share-confirm"]'),
     ])
     const mcPath = await monthCard.path()
     if (!mcPath) fail('月卡沒有下載成功')

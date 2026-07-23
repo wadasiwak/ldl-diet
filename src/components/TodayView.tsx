@@ -14,7 +14,8 @@ import RingGauges from './RingGauges'
 import AdviceCard from './AdviceCard'
 import { getApiKey } from '../lib/vision'
 import { getPhoto } from '../lib/photos'
-import { renderDayCard, shareCard } from '../lib/shareCard'
+import { renderDayCard } from '../lib/shareCard'
+import SharePreview from './SharePreview'
 
 /** 連續記錄天數（今天還沒記就從昨天起算，不打斷 streak） */
 function streakDays(records: Record<string, MealRecord[]>): number {
@@ -166,8 +167,9 @@ function ShareDayButton({ date, meals, streak }: { date: string; meals: MealReco
   const targets = useApp((s) => s.settings.targets)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
+  const [preview, setPreview] = useState<Blob | null>(null)
 
-  async function onShare() {
+  async function onRender() {
     setBusy(true)
     setMsg(null)
     try {
@@ -180,9 +182,7 @@ function ShareDayButton({ date, meals, streak }: { date: string; meals: MealReco
         }
         if (photos.length >= 3) break
       }
-      const blob = await renderDayCard(date, meals, targets, photos, streak)
-      const how = await shareCard(blob, `ldl-diet-${date}.png`)
-      if (how === 'downloaded') setMsg('圖卡已下載 ✓')
+      setPreview(await renderDayCard(date, meals, targets, photos, streak))
     } catch (e) {
       setMsg(e instanceof Error ? e.message : String(e))
     } finally {
@@ -192,10 +192,11 @@ function ShareDayButton({ date, meals, streak }: { date: string; meals: MealReco
 
   return (
     <div style={{ padding: '0 12px' }}>
-      <button style={{ width: '100%' }} onClick={() => void onShare()} disabled={busy} data-testid="share-day">
+      <button style={{ width: '100%' }} onClick={() => void onRender()} disabled={busy} data-testid="share-day">
         {busy ? '產生圖卡中…' : '📤 分享我的這一天'}
       </button>
       {msg && <p className="small dim" style={{ margin: '6px 0 0', textAlign: 'center' }}>{msg}</p>}
+      {preview && <SharePreview blob={preview} filename={`ldl-diet-${date}.png`} onClose={() => setPreview(null)} />}
     </div>
   )
 }

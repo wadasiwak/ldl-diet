@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useApp } from '../state'
-import { renderMonthCard, shareCard } from '../lib/shareCard'
+import { renderMonthCard } from '../lib/shareCard'
+import SharePreview from './SharePreview'
 import {
   NUTRIENT_META,
   localDateStr,
@@ -154,6 +155,7 @@ function ShareMonthButton({
   const weights = useApp((s) => s.weights)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
+  const [preview, setPreview] = useState<Blob | null>(null)
 
   async function onShare() {
     setBusy(true)
@@ -179,17 +181,17 @@ function ShareMonthButton({
         .sort((a, b) => b[1] - a[1])
         .slice(0, 3)
         .map(([name, count]) => ({ name, count }))
-      const blob = await renderMonthCard({
-        month,
-        metByDay,
-        loggedDays: loggedCount,
-        allMetDays: allMet,
-        metCounts: { kcal: metDays('kcal'), satFat: metDays('satFat'), chol: metDays('chol'), fiber: metDays('fiber') },
-        weightDelta,
-        topFoods,
-      })
-      const how = await shareCard(blob, `ldl-diet-${month}.png`)
-      if (how === 'downloaded') setMsg('圖卡已下載 ✓')
+      setPreview(
+        await renderMonthCard({
+          month,
+          metByDay,
+          loggedDays: loggedCount,
+          allMetDays: allMet,
+          metCounts: { kcal: metDays('kcal'), satFat: metDays('satFat'), chol: metDays('chol'), fiber: metDays('fiber') },
+          weightDelta,
+          topFoods,
+        }),
+      )
     } catch (e) {
       setMsg(e instanceof Error ? e.message : String(e))
     } finally {
@@ -203,6 +205,7 @@ function ShareMonthButton({
         {busy ? '產生圖卡中…' : '📤 分享我的這個月'}
       </button>
       {msg && <p className="small dim" style={{ margin: '6px 0 0', textAlign: 'center' }}>{msg}</p>}
+      {preview && <SharePreview blob={preview} filename={`ldl-diet-${month}.png`} onClose={() => setPreview(null)} />}
     </div>
   )
 }
