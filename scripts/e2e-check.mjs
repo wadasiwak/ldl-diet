@@ -348,6 +348,27 @@ try {
     const comboRows = await page.$$('[data-testid="review-row"]')
     if (comboRows.length !== 2) fail(`整餐複製應帶入 2 列，實得 ${comboRows.length}`)
     else ok('整餐一鍵複製')
+    // 分享圖卡：今日與本月（headless 無 navigator.share → 走下載）
+    await page.goto(BASE)
+    const [dayCard] = await Promise.all([
+      page.waitForEvent('download', { timeout: 15000 }),
+      page.click('[data-testid="share-day"]'),
+    ])
+    if (!dayCard.suggestedFilename().startsWith('ldl-diet-')) fail(`日卡檔名異常：${dayCard.suggestedFilename()}`)
+    await page.goto(`${BASE}#history`)
+    const [monthCard] = await Promise.all([
+      page.waitForEvent('download', { timeout: 15000 }),
+      page.click('[data-testid="share-month"]'),
+    ])
+    const mcPath = await monthCard.path()
+    if (!mcPath) fail('月卡沒有下載成功')
+    else {
+      const { copyFileSync } = await import('node:fs')
+      copyFileSync(mcPath, '/tmp/ldl-diet-monthcard.png')
+      const dcPath = await dayCard.path()
+      if (dcPath) copyFileSync(dcPath, '/tmp/ldl-diet-daycard.png')
+      ok('分享圖卡（日/月）產生成功，存 /tmp 待人工看')
+    }
     await ctx.close()
   }
   // ---- 8.5 查食物頁 ----

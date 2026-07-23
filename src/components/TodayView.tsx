@@ -13,6 +13,8 @@ import {
 import RingGauges from './RingGauges'
 import AdviceCard from './AdviceCard'
 import { getApiKey } from '../lib/vision'
+import { getPhoto } from '../lib/photos'
+import { renderDayCard, shareCard } from '../lib/shareCard'
 
 /** 連續記錄天數（今天還沒記就從昨天起算，不打斷 streak） */
 function streakDays(records: Record<string, MealRecord[]>): number {
@@ -59,6 +61,7 @@ export default function TodayView() {
 
       <WaterRow date={date} />
       <WeightRow date={date} />
+      {meals.length > 0 && <ShareDayButton date={date} meals={meals} streak={streak} />}
       <A2hsHint />
       <div style={{ height: 12 }} />
     </main>
@@ -155,6 +158,45 @@ function WeightRow({ date }: { date: string }) {
         都選填。腰圍是代謝症候群指標之一（一般參考：男 &lt;90cm、女 &lt;80cm）。
       </p>
     </section>
+  )
+}
+
+/** 分享「我的這一天」圖卡（本機繪製，含餐點照與逐餐清單）。 */
+function ShareDayButton({ date, meals, streak }: { date: string; meals: MealRecord[]; streak: number }) {
+  const targets = useApp((s) => s.settings.targets)
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<string | null>(null)
+
+  async function onShare() {
+    setBusy(true)
+    setMsg(null)
+    try {
+      const photos: Blob[] = []
+      for (const m of meals) {
+        for (const id of m.photoIds) {
+          const b = await getPhoto(id)
+          if (b) photos.push(b)
+          if (photos.length >= 3) break
+        }
+        if (photos.length >= 3) break
+      }
+      const blob = await renderDayCard(date, meals, targets, photos, streak)
+      const how = await shareCard(blob, `ldl-diet-${date}.png`)
+      if (how === 'downloaded') setMsg('圖卡已下載 ✓')
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div style={{ padding: '0 12px' }}>
+      <button style={{ width: '100%' }} onClick={() => void onShare()} disabled={busy} data-testid="share-day">
+        {busy ? '產生圖卡中…' : '📤 分享我的這一天'}
+      </button>
+      {msg && <p className="small dim" style={{ margin: '6px 0 0', textAlign: 'center' }}>{msg}</p>}
+    </div>
   )
 }
 

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useApp } from '../state'
+import { renderMonthCard, shareCard } from '../lib/shareCard'
 import {
   NUTRIENT_META,
   localDateStr,
@@ -120,6 +121,7 @@ export default function HistoryView({ month }: { month?: string }) {
             各指標達標：熱量 {metDays('kcal')}、飽脂 {metDays('satFat')}、膽固醇 {metDays('chol')}、纖維 {metDays('fiber')} 天
           </div>
         )}
+        {logged.length > 0 && <ShareMonthButton month={m} dayData={dayData} metDays={metDays} allMet={allMet} loggedCount={logged.length} />}
       </section>
 
       {logged.length === 0 && (
@@ -132,6 +134,76 @@ export default function HistoryView({ month }: { month?: string }) {
       <BodyChart month={m} />
       <LabsPanel />
     </main>
+  )
+}
+
+/** 分享「我的這個月」圖卡（熱圖+統計+常吃 Top3，本機繪製）。 */
+function ShareMonthButton({
+  month,
+  dayData,
+  metDays,
+  allMet,
+  loggedCount,
+}: {
+  month: string
+  dayData: Array<{ date: string; meals: MealRecord[]; consumed: Nutrients; met: number } | null>
+  metDays: (k: NutrientKey) => number
+  allMet: number
+  loggedCount: number
+}) {
+  const weights = useApp((s) => s.weights)
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<string | null>(null)
+
+  async function onShare() {
+    setBusy(true)
+    setMsg(null)
+    try {
+      const metByDay = new Map<number, number>()
+      const foodCount = new Map<string, number>()
+      dayData.forEach((d, i) => {
+        if (!d) return
+        metByDay.set(i + 1, d.met)
+        for (const meal of d.meals) for (const it of meal.items) {
+          const n = it.name.trim()
+          if (n) foodCount.set(n, (foodCount.get(n) ?? 0) + 1)
+        }
+      })
+      const wPts = Object.entries(weights)
+        .filter(([d]) => d.startsWith(month))
+        .sort(([a], [b]) => (a < b ? -1 : 1))
+      const weightDelta =
+        wPts.length >= 2 ? Math.round((wPts[wPts.length - 1][1] - wPts[0][1]) * 10) / 10 : null
+      const topFoods = [...foodCount.entries()]
+        .filter(([, c]) => c > 1)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
+        .map(([name, count]) => ({ name, count }))
+      const blob = await renderMonthCard({
+        month,
+        metByDay,
+        loggedDays: loggedCount,
+        allMetDays: allMet,
+        metCounts: { kcal: metDays('kcal'), satFat: metDays('satFat'), chol: metDays('chol'), fiber: metDays('fiber') },
+        weightDelta,
+        topFoods,
+      })
+      const how = await shareCard(blob, `ldl-diet-${month}.png`)
+      if (how === 'downloaded') setMsg('圖卡已下載 ✓')
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div style={{ marginTop: 10 }}>
+      <button style={{ width: '100%' }} onClick={() => void onShare()} disabled={busy} data-testid="share-month">
+        {busy ? '產生圖卡中…' : '📤 分享我的這個月'}
+      </button>
+      {msg && <p className="small dim" style={{ margin: '6px 0 0', textAlign: 'center' }}>{msg}</p>}
+    </div>
   )
 }
 
