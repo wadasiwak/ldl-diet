@@ -15,9 +15,7 @@ import {
 import RingGauges from './RingGauges'
 import AdviceCard from './AdviceCard'
 import { getApiKey } from '../lib/vision'
-import { getPhoto } from '../lib/photos'
-import { renderDayCard } from '../lib/shareCard'
-import SharePreview from './SharePreview'
+import ShareDayButton from './ShareDayButton'
 import { DISHES, type Dish } from '../content/dishes'
 import { computeContext } from '../lib/advice'
 
@@ -273,45 +271,6 @@ function WhatToEat({ consumed, targets }: { consumed: Nutrients; targets: DailyT
         料理數值是常見範圍的估計（非官方檢驗），同一道菜依店家差很多——實際吃了什麼建議用拍照辨識校正。
       </p>
     </section>
-  )
-}
-
-/** 分享「我的這一天」圖卡（本機繪製，含餐點照與逐餐清單）。 */
-function ShareDayButton({ date, meals, streak }: { date: string; meals: MealRecord[]; streak: number }) {
-  const targets = useApp((s) => s.settings.targets)
-  const [busy, setBusy] = useState(false)
-  const [msg, setMsg] = useState<string | null>(null)
-  const [preview, setPreview] = useState<Blob | null>(null)
-
-  async function onRender() {
-    setBusy(true)
-    setMsg(null)
-    try {
-      const photos: Blob[] = []
-      for (const m of meals) {
-        for (const id of m.photoIds) {
-          const b = await getPhoto(id)
-          if (b) photos.push(b)
-          if (photos.length >= 3) break
-        }
-        if (photos.length >= 3) break
-      }
-      setPreview(await renderDayCard(date, meals, targets, photos, streak))
-    } catch (e) {
-      setMsg(e instanceof Error ? e.message : String(e))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <div style={{ padding: '0 12px' }}>
-      <button style={{ width: '100%' }} onClick={() => void onRender()} disabled={busy} data-testid="share-day">
-        {busy ? '產生圖卡中…' : '📤 分享我的這一天'}
-      </button>
-      {msg && <p className="small dim" style={{ margin: '6px 0 0', textAlign: 'center' }}>{msg}</p>}
-      {preview && <SharePreview blob={preview} filename={`ldl-diet-${date}.png`} onClose={() => setPreview(null)} />}
-    </div>
   )
 }
 

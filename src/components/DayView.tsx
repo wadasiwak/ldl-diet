@@ -14,6 +14,7 @@ import { deletePhotos } from '../lib/photos'
 import RingGauges from './RingGauges'
 import ReviewTable from './ReviewTable'
 import PhotoThumb from './PhotoThumb'
+import ShareDayButton from './ShareDayButton'
 
 export default function DayView({ date }: { date: string }) {
   const meals = useApp((s) => s.records[date]) ?? []
@@ -38,6 +39,12 @@ export default function DayView({ date }: { date: string }) {
       {meals.map((m) => (
         <MealCard key={m.id} meal={m} />
       ))}
+
+      {meals.length > 0 && (
+        <div style={{ marginBottom: 12 }}>
+          <ShareDayButton date={date} meals={meals} />
+        </div>
+      )}
 
       <div style={{ padding: '0 12px 16px' }}>
         <p className="small dim" style={{ margin: '0 0 6px' }}>＋ 補登這一天：</p>

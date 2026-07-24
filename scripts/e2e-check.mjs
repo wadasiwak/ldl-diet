@@ -175,10 +175,11 @@ try {
       const ring = await page.textContent('[data-testid="ring-kcal"]')
       if (!/[1-9]/.test(ring)) fail(`入帳後熱量環仍是 0：${ring}`)
       else ok('搜尋入帳 → 儀表有數字')
-      // 今日頁每餐要有「修改」入口 → 日明細可編輯
+      // 今日頁每餐要有「修改」入口 → 日明細可編輯，且日明細也能分享
       await page.click('[data-testid="edit-meal"]')
       await page.waitForSelector('[data-testid="day-meal"]', { timeout: 3000 })
-      ok('今日頁 → 修改 → 日明細')
+      if (!(await page.$('[data-testid="share-day"]'))) fail('日明細缺分享鈕')
+      ok('今日頁 → 修改 → 日明細（含分享鈕）')
     }
     await page.screenshot({ path: '/tmp/ldl-diet-today.png', fullPage: true })
     await ctx.close()
