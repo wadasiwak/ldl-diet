@@ -1,4 +1,5 @@
-import { useApp } from './state'
+import { useEffect } from 'react'
+import { useApp, viewToHash } from './state'
 import DisclaimerModal from './components/DisclaimerModal'
 import TodayView from './components/TodayView'
 import CaptureFlow from './components/CaptureFlow'
@@ -11,6 +12,12 @@ export default function App() {
   const view = useApp((s) => s.view)
   const setView = useApp((s) => s.setView)
   const disclaimerOk = useApp((s) => s.settings.disclaimerAcceptedAt !== null)
+
+  // SPA 切頁不會重載，捲動位置會黏著上一頁——換 view 一律回頂端
+  const viewKey = viewToHash(view) || 'today'
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [viewKey])
 
   const tab = view.name === 'day' ? 'history' : view.name === 'capture' ? 'today' : view.name
 
